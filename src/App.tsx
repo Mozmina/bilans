@@ -1,11 +1,60 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Trash2, Calendar, MapPin, User, Clock, Users, Printer, Layout, RotateCcw } from 'lucide-react';
+
+// --- TYPES & INTERFACES ---
+
+type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'accent' | 'ghost';
+
+interface ButtonProps {
+  onClick: () => void;
+  variant?: ButtonVariant;
+  className?: string;
+  children: React.ReactNode;
+  disabled?: boolean;
+}
+
+interface InputProps {
+  label?: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  type?: string;
+  className?: string;
+}
+
+interface Slot {
+  id: number;
+  time: string;
+  group: string;
+}
+
+interface Block {
+  id: number;
+  location: string;
+  person: string;
+  slots: Slot[];
+}
+
+interface DayData {
+  active: boolean;
+  blocks: Block[];
+}
+
+// Record<string, DayData> permet d'utiliser des clés string (ex: "2026-02-04") sans erreur TS7053
+type DaysData = Record<string, DayData>;
+
+interface StoredData {
+  currentWeek: string;
+  weekLabel: string;
+  daysData: DaysData;
+}
 
 // --- COMPOSANTS UI ---
 
-const Button = ({ onClick, variant = 'primary', className = '', children, disabled = false }) => {
+const Button = ({ onClick, variant = 'primary', className = '', children, disabled = false }: ButtonProps) => {
   const baseStyle = "px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-sm";
-  const variants = {
+  
+  const variants: Record<ButtonVariant, string> = {
     primary: "bg-slate-800 text-white hover:bg-slate-700",
     secondary: "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50",
     danger: "bg-red-50 text-red-600 hover:bg-red-100 border border-red-100",
@@ -24,7 +73,7 @@ const Button = ({ onClick, variant = 'primary', className = '', children, disabl
   );
 };
 
-const Input = ({ label, value, onChange, placeholder, type = "text", className = "" }) => (
+const Input = ({ label, value, onChange, placeholder = '', type = "text", className = "" }: InputProps) => (
   <div className={`flex flex-col gap-1 ${className}`}>
     {label && <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{label}</label>}
     <input
@@ -39,15 +88,20 @@ const Input = ({ label, value, onChange, placeholder, type = "text", className =
 
 // --- FONCTIONS UTILITAIRES ---
 
-const getDatesOfWeek = (weekString) => {
+const getDatesOfWeek = (weekString: string): Date[] => {
   if (!weekString) return [];
-  const [year, week] = weekString.split('-W');
+  const parts = weekString.split('-W');
+  if (parts.length < 2) return [];
+  
+  const year = parseInt(parts[0], 10);
+  const week = parseInt(parts[1], 10);
+  
   const date = new Date(year, 0, (1 + (week - 1) * 7));
   const day = date.getDay();
   const diff = date.getDate() - day + (day === 0 ? -6 : 1);
   const monday = new Date(date.setDate(diff));
   
-  const weekDates = [];
+  const weekDates: Date[] = [];
   for (let i = 0; i < 5; i++) { // Lundi à Vendredi
     const current = new Date(monday);
     current.setDate(monday.getDate() + i);
@@ -56,23 +110,23 @@ const getDatesOfWeek = (weekString) => {
   return weekDates;
 };
 
-const formatDate = (date) => {
+const formatDate = (date: Date): string => {
   return new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }).format(date);
 };
 
-const getDayName = (date) => {
+const getDayName = (date: Date): string => {
   return new Intl.DateTimeFormat('fr-FR', { weekday: 'long' }).format(date).toUpperCase();
 };
 
 // --- DATA INITIALE ---
 
-const initialBlock = {
-  id: Date.now(),
+const initialBlock: Block = {
+  id: 0, // Sera écrasé par Date.now()
   location: '',
   person: '',
   slots: [
-    { id: Date.now() + 1, time: '13h00', group: '' },
-    { id: Date.now() + 2, time: '14h00', group: '' }
+    { id: 1, time: '13h00', group: '' },
+    { id: 2, time: '14h00', group: '' }
   ]
 };
 
@@ -80,17 +134,17 @@ const initialBlock = {
 
 export default function PlanningGenerator() {
   // --- STATE ---
-  const [currentWeek, setCurrentWeek] = useState('2026-W05');
-  const [weekLabel, setWeekLabel] = useState('Semaine A');
-  const [daysData, setDaysData] = useState({});
-  const [activeDayIndex, setActiveDayIndex] = useState(0); // 0 = Lundi, 4 = Vendredi
+  const [currentWeek, setCurrentWeek] = useState<string>('2026-W05');
+  const [weekLabel, setWeekLabel] = useState<string>('Semaine A');
+  const [daysData, setDaysData] = useState<DaysData>({});
+  const [activeDayIndex, setActiveDayIndex] = useState<number>(0);
 
   // --- PERSISTANCE ---
   useEffect(() => {
     const saved = localStorage.getItem('btp-planning-data');
     if (saved) {
       try {
-        const parsed = JSON.parse(saved);
+        const parsed: StoredData = JSON.parse(saved);
         setCurrentWeek(parsed.currentWeek || '2026-W05');
         setWeekLabel(parsed.weekLabel || 'Semaine A');
         setDaysData(parsed.daysData || {});
@@ -108,27 +162,29 @@ export default function PlanningGenerator() {
 
   const weekDates = getDatesOfWeek(currentWeek);
   
-  const getDayKey = (date) => date.toISOString().split('T')[0];
+  const getDayKey = (date: Date): string => date.toISOString().split('T')[0];
 
-  const handleDayToggle = (dateKey) => {
+  const handleDayToggle = (dateKey: string) => {
     setDaysData(prev => {
       const newData = { ...prev };
       if (newData[dateKey]) {
-        // Si déjà actif, on ne fait rien (on l'édite via l'UI)
-        // Ou on pourrait le supprimer si on veut un toggle strict, 
-        // mais pour l'UX d'édition c'est mieux de juste "activer" l'édition
+        // Déjà actif
       } else {
-        // Initialiser le jour
+        // Initialiser le jour avec des nouveaux IDs uniques
         newData[dateKey] = {
           active: true,
-          blocks: [{ ...initialBlock, id: Date.now(), slots: [{ id: Date.now()+1, time: '', group: '' }] }]
+          blocks: [{ 
+            ...initialBlock, 
+            id: Date.now(), 
+            slots: [{ id: Date.now() + 1, time: '', group: '' }] 
+          }]
         };
       }
       return newData;
     });
   };
 
-  const removeDay = (dateKey) => {
+  const removeDay = (dateKey: string) => {
     setDaysData(prev => {
       const newData = { ...prev };
       delete newData[dateKey];
@@ -136,15 +192,17 @@ export default function PlanningGenerator() {
     });
   };
 
-  const updateBlock = (dateKey, blockIndex, field, value) => {
+  // Typage strict pour les champs du bloc
+  const updateBlock = (dateKey: string, blockIndex: number, field: keyof Block, value: string) => {
     setDaysData(prev => {
       const newData = { ...prev };
-      newData[dateKey].blocks[blockIndex][field] = value;
+      // On utilise 'as any' ici car TypeScript a du mal à mapper dynamiquement string sur les propriétés spécifiques
+      (newData[dateKey].blocks[blockIndex] as any)[field] = value;
       return newData;
     });
   };
 
-  const addBlock = (dateKey) => {
+  const addBlock = (dateKey: string) => {
     setDaysData(prev => {
       const newData = { ...prev };
       if (newData[dateKey].blocks.length < 2) {
@@ -159,7 +217,7 @@ export default function PlanningGenerator() {
     });
   };
 
-  const removeBlock = (dateKey, blockIndex) => {
+  const removeBlock = (dateKey: string, blockIndex: number) => {
     setDaysData(prev => {
       const newData = { ...prev };
       newData[dateKey].blocks.splice(blockIndex, 1);
@@ -167,7 +225,7 @@ export default function PlanningGenerator() {
     });
   };
 
-  const addSlot = (dateKey, blockIndex) => {
+  const addSlot = (dateKey: string, blockIndex: number) => {
     setDaysData(prev => {
       const newData = { ...prev };
       newData[dateKey].blocks[blockIndex].slots.push({ id: Date.now(), time: '', group: '' });
@@ -175,15 +233,15 @@ export default function PlanningGenerator() {
     });
   };
 
-  const updateSlot = (dateKey, blockIndex, slotIndex, field, value) => {
+  const updateSlot = (dateKey: string, blockIndex: number, slotIndex: number, field: keyof Slot, value: string) => {
     setDaysData(prev => {
       const newData = { ...prev };
-      newData[dateKey].blocks[blockIndex].slots[slotIndex][field] = value;
+      (newData[dateKey].blocks[blockIndex].slots[slotIndex] as any)[field] = value;
       return newData;
     });
   };
 
-  const removeSlot = (dateKey, blockIndex, slotIndex) => {
+  const removeSlot = (dateKey: string, blockIndex: number, slotIndex: number) => {
     setDaysData(prev => {
       const newData = { ...prev };
       newData[dateKey].blocks[blockIndex].slots.splice(slotIndex, 1);
@@ -192,7 +250,7 @@ export default function PlanningGenerator() {
   };
 
   const resetAll = () => {
-    if(confirm("Tout effacer et recommencer ?")) {
+    if(window.confirm("Tout effacer et recommencer ?")) {
         setDaysData({});
         localStorage.removeItem('btp-planning-data');
     }
