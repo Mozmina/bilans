@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Calendar as CalendarIcon, MapPin, User, Printer, Layout, RotateCcw, ChevronLeft, ChevronRight, X, ChevronDown, Clock, Users } from 'lucide-react';
+import { Plus, Trash2, Calendar, MapPin, User, Printer, Layout, RotateCcw, ChevronLeft, ChevronRight, X, ChevronDown, Clock, Users } from 'lucide-react';
 
-// --- TYPES ---
+// --- TYPES SIMPLIFIÉS ---
 interface Slot {
   id: number;
   time: string;
@@ -234,7 +234,7 @@ export default function PlanningGenerator() {
                                             {b.slots.map((s, si) => (
                                                 <div key={s.id} className="flex gap-1 items-center">
                                                     <input className="w-16 text-xs p-1.5 border rounded text-center font-mono" value={s.time} onChange={e=>updateSlot(k,bi,si,'time',e.target.value)} placeholder="00h00" />
-                                                    {/* ICI : FORÇAGE MAJUSCULES */}
+                                                    {/* FORCE MAJUSCULE ICI */}
                                                     <input className="flex-1 text-xs p-1.5 border rounded font-bold uppercase" value={s.group} onChange={e=>updateSlot(k,bi,si,'group',e.target.value.toUpperCase())} placeholder="GROUPE" />
                                                     <button onClick={()=>removeSlot(k,bi,si)} className="text-slate-300 hover:text-red-500"><X size={12}/></button>
                                                 </div>
@@ -294,7 +294,8 @@ export default function PlanningGenerator() {
                                     <h2 className={`${styles.dayTitleSize} font-black uppercase tracking-wide`}>{getDayName(date)}</h2>
                                     {!hasTwoBlocks && dayData.blocks[0] && (
                                         <div className="flex items-center gap-3 text-xs opacity-90 font-medium">
-                                            {dayData.blocks[0].location && <span className="flex items-center gap-1 uppercase tracking-wide"><MapPin size={12}/> {dayData.blocks[0].location}</span>}
+                                            {/* PIN ROUGE ICI */}
+                                            {dayData.blocks[0].location && <span className="flex items-center gap-1 uppercase tracking-wide"><MapPin size={14} className="text-rose-500" /> {dayData.blocks[0].location}</span>}
                                             {dayData.blocks[0].person && <span className="flex items-center gap-1 bg-white/20 px-2 py-0.5 rounded-full"><User size={12}/> {dayData.blocks[0].person}</span>}
                                         </div>
                                     )}
@@ -307,7 +308,8 @@ export default function PlanningGenerator() {
                                             {/* Sub-Header si 2 blocs */}
                                             {hasTwoBlocks && (
                                                 <div className={`${styles.subHeaderBg} ${styles.subHeaderP} border-b border-slate-100 flex justify-between items-center ${styles.subHeaderText} font-bold text-slate-600 uppercase tracking-tight`}>
-                                                    <span className="flex items-center gap-1 truncate"><MapPin size={10} className="text-[#f1c40f]"/> {block.location || '-'}</span>
+                                                    {/* PIN ROUGE ICI AUSSI */}
+                                                    <span className="flex items-center gap-1 truncate"><MapPin size={12} className="text-rose-500"/> {block.location || '-'}</span>
                                                     <span className="flex items-center gap-1 bg-white px-2 py-0.5 rounded-full border shadow-sm normal-case text-slate-800"><User size={10}/> {block.person || '-'}</span>
                                                 </div>
                                             )}
