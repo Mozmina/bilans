@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Calendar, MapPin, User, Clock, Users, Printer, Layout, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, Calendar as CalendarIcon, MapPin, User, Printer, Layout, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
 
 // --- TYPES & INTERFACES ---
 
@@ -87,7 +87,17 @@ const Input = ({ label, value, onChange, placeholder = '', type = "text", classN
 
 // --- FONCTIONS UTILITAIRES ---
 
-// Récupère les dates du Lundi au Vendredi (5 jours)
+// Conversion Date -> String ISO Week (YYYY-Www)
+const getISOWeekString = (date: Date): string => {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+  const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1)/7);
+  return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+};
+
+// Récupère les dates du Lundi au Vendredi pour une semaine ISO donnée
 const getDatesOfWeek = (weekString: string): Date[] => {
   if (!weekString) return [];
   const parts = weekString.split('-W');
@@ -102,7 +112,7 @@ const getDatesOfWeek = (weekString: string): Date[] => {
   const monday = new Date(date.setDate(diff));
   
   const weekDates: Date[] = [];
-  for (let i = 0; i < 5; i++) { // Lundi à Vendredi (Samedi exclu)
+  for (let i = 0; i < 5; i++) { // Lundi à Vendredi
     const current = new Date(monday);
     current.setDate(monday.getDate() + i);
     weekDates.push(current);
@@ -110,7 +120,6 @@ const getDatesOfWeek = (weekString: string): Date[] => {
   return weekDates;
 };
 
-// Formateur de date simple (ex: "Lundi 2 Février")
 const formatDate = (date: Date): string => {
   return new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }).format(date);
 };
@@ -132,16 +141,6 @@ const getDayName = (date: Date): string => {
   return new Intl.DateTimeFormat('fr-FR', { weekday: 'long' }).format(date).toUpperCase();
 };
 
-// Conversion Date -> String ISO Week (YYYY-Www) pour navigation
-const getISOWeekString = (date: Date): string => {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const dayNum = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
-  const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1)/7);
-  return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
-};
-
 // --- DATA INITIALE ---
 
 const initialBlock: Block = {
@@ -161,6 +160,9 @@ export default function PlanningGenerator() {
   const [currentWeek, setCurrentWeek] = useState<string>('2026-W05');
   const [weekLabel, setWeekLabel] = useState<string>('Semaine A');
   const [daysData, setDaysData] = useState<DaysData>({});
+  
+  // State pour le calendrier visuel (Mois affiché)
+  const [viewDate, setViewDate] = useState(new Date());
 
   // --- PERSISTANCE ---
   useEffect(() => {
@@ -171,6 +173,12 @@ export default function PlanningGenerator() {
         setCurrentWeek(parsed.currentWeek || '2026-W05');
         setWeekLabel(parsed.weekLabel || 'Semaine A');
         setDaysData(parsed.daysData || {});
+        
+        // Mettre à jour la vue calendrier sur la semaine chargée
+        if(parsed.currentWeek) {
+            const dates = getDatesOfWeek(parsed.currentWeek);
+            if(dates.length > 0) setViewDate(dates[0]);
+        }
       } catch (e) {
         console.error("Erreur de chargement", e);
       }
@@ -184,17 +192,7 @@ export default function PlanningGenerator() {
   // --- LOGIQUE METIER ---
 
   const weekDates = getDatesOfWeek(currentWeek);
-  
   const getDayKey = (date: Date): string => date.toISOString().split('T')[0];
-
-  const changeWeek = (direction: 'prev' | 'next') => {
-    const dates = getDatesOfWeek(currentWeek);
-    if(dates.length === 0) return;
-    const monday = dates[0];
-    const shift = direction === 'next' ? 7 : -7;
-    monday.setDate(monday.getDate() + shift);
-    setCurrentWeek(getISOWeekString(monday));
-  };
 
   const handleDayToggle = (dateKey: string) => {
     setDaysData(prev => {
@@ -287,11 +285,47 @@ export default function PlanningGenerator() {
     }
   };
 
-  // Calcul des jours actifs triés par ordre chronologique
+  // --- LOGIQUE CALENDRIER ---
+  
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    
+    // 0 = Dimanche, 1 = Lundi, ...
+    // On veut commencer Lundi (1), donc on ajuste
+    let startDay = firstDay.getDay() || 7; 
+    
+    const days = [];
+    // Padding début de mois
+    for (let i = 1; i < startDay; i++) {
+        days.push(null);
+    }
+    // Jours du mois
+    for (let i = 1; i <= lastDay.getDate(); i++) {
+        days.push(new Date(year, month, i));
+    }
+    return days;
+  };
+
+  const selectWeekFromDate = (date: Date) => {
+      const weekString = getISOWeekString(date);
+      setCurrentWeek(weekString);
+  };
+
+  const changeMonth = (offset: number) => {
+      const newDate = new Date(viewDate);
+      newDate.setMonth(newDate.getMonth() + offset);
+      setViewDate(newDate);
+  };
+
+  // --- RENDER ---
   const activeDates = weekDates.filter(d => daysData[getDayKey(d)]?.active);
   const isLandscape = activeDates.length === 1;
 
-  // --- RENDER ---
+  const monthDays = getDaysInMonth(viewDate);
+  const currentWeekKeys = weekDates.map(d => getDayKey(d));
 
   return (
     <div className="flex flex-col h-screen bg-slate-100 font-sans overflow-hidden">
@@ -317,40 +351,69 @@ export default function PlanningGenerator() {
         {/* --- SIDEBAR EDITEUR (Gauche) --- */}
         <div className="w-1/3 min-w-[420px] bg-white border-r border-slate-200 flex flex-col print:hidden">
           
-          {/* 1. Configuration Semaine */}
+          {/* 1. Calendrier & Config */}
           <div className="p-6 border-b border-slate-100 bg-white z-20 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.1)]">
             <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-              <Calendar size={14}/> Période
+              <CalendarIcon size={14}/> Sélection Semaine
             </h2>
             
-            {/* Nouveau Sélecteur de Semaine Custom */}
-            <div className="mb-6 flex flex-col gap-3">
-              <div className="flex items-center justify-between bg-slate-50 p-1 rounded-lg border border-slate-200">
-                <button onClick={() => changeWeek('prev')} className="p-2 hover:bg-white hover:shadow-sm rounded-md transition-all text-slate-600">
-                  <ChevronLeft size={20} />
-                </button>
-                <div className="text-center">
-                  <div className="text-sm font-bold text-slate-800">Semaine {currentWeek.split('-W')[1]}</div>
-                  <div className="text-[10px] text-slate-500 font-medium">
-                     {weekDates.length > 0 ? `Du ${new Intl.DateTimeFormat('fr-FR', {day: 'numeric', month: 'short'}).format(weekDates[0])} au ${new Intl.DateTimeFormat('fr-FR', {day: 'numeric', month: 'short'}).format(weekDates[4])}` : '...'}
-                  </div>
+            {/* CALENDRIER VISUEL */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4">
+                <div className="flex justify-between items-center mb-4">
+                    <button onClick={() => changeMonth(-1)} className="p-1 hover:bg-slate-200 rounded"><ChevronLeft size={16}/></button>
+                    <span className="font-bold text-slate-700 capitalize">
+                        {new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(viewDate)}
+                    </span>
+                    <button onClick={() => changeMonth(1)} className="p-1 hover:bg-slate-200 rounded"><ChevronRight size={16}/></button>
                 </div>
-                <button onClick={() => changeWeek('next')} className="p-2 hover:bg-white hover:shadow-sm rounded-md transition-all text-slate-600">
-                  <ChevronRight size={20} />
-                </button>
-              </div>
+                
+                <div className="grid grid-cols-7 gap-1 text-center mb-2">
+                    {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map(d => (
+                        <span key={d} className="text-[10px] font-bold text-slate-400">{d}</span>
+                    ))}
+                </div>
+                
+                <div className="grid grid-cols-7 gap-1">
+                    {monthDays.map((day, idx) => {
+                        if(!day) return <div key={`empty-${idx}`} />;
+                        
+                        const dateKey = getDayKey(day);
+                        // Est-ce que ce jour fait partie de la semaine sélectionnée ?
+                        // On compare avec la liste des jours de la semaine courante (weekDates)
+                        // Attention: weekDates ne contient que Lun-Ven, mais le calendrier affiche Lun-Dim.
+                        // On vérifie donc si la semaine ISO est la même.
+                        const isSelectedWeek = getISOWeekString(day) === currentWeek;
+                        
+                        return (
+                            <button 
+                                key={idx}
+                                onClick={() => selectWeekFromDate(day)}
+                                className={`
+                                    h-8 rounded-md text-sm flex items-center justify-center transition-all
+                                    ${isSelectedWeek 
+                                        ? 'bg-blue-100 text-blue-700 font-bold border border-blue-200' 
+                                        : 'hover:bg-white hover:shadow-sm text-slate-600'}
+                                `}
+                            >
+                                {day.getDate()}
+                            </button>
+                        )
+                    })}
+                </div>
+            </div>
 
-              <Input 
-                label="Libellé personnalisé" 
-                value={weekLabel} 
-                onChange={setWeekLabel} 
-                placeholder="Ex: Semaine A"
-              />
+            <div className="mb-6">
+                 <Input 
+                    label="Libellé personnalisé" 
+                    value={weekLabel} 
+                    onChange={setWeekLabel} 
+                    placeholder="Ex: Semaine A"
+                />
             </div>
             
             {/* Sélecteur de Jours */}
             <div>
-               <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Jours Actifs</label>
+               <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Jours Actifs (Clic pour activer)</label>
                <div className="flex justify-between gap-1">
                  {weekDates.map((date, idx) => {
                    const key = getDayKey(date);
@@ -475,7 +538,7 @@ export default function PlanningGenerator() {
                );
              }) : (
                <div className="h-full flex flex-col items-center justify-center text-slate-400 min-h-[300px]">
-                 <Calendar size={48} className="mb-4 opacity-20"/>
+                 <CalendarIcon size={48} className="mb-4 opacity-20"/>
                  <p className="text-center text-sm">Sélectionnez les jours ci-dessus<br/>pour les ajouter au planning</p>
                </div>
              )}
