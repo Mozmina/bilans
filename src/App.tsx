@@ -325,7 +325,6 @@ export default function PlanningGenerator() {
   const isLandscape = activeDates.length === 1;
 
   const monthDays = getDaysInMonth(viewDate);
-  const currentWeekKeys = weekDates.map(d => getDayKey(d));
 
   return (
     <div className="flex flex-col h-screen bg-slate-100 font-sans overflow-hidden">
@@ -377,7 +376,6 @@ export default function PlanningGenerator() {
                     {monthDays.map((day, idx) => {
                         if(!day) return <div key={`empty-${idx}`} />;
                         
-                        const dateKey = getDayKey(day);
                         // Est-ce que ce jour fait partie de la semaine sélectionnée ?
                         // On compare avec la liste des jours de la semaine courante (weekDates)
                         // Attention: weekDates ne contient que Lun-Ven, mais le calendrier affiche Lun-Dim.
