@@ -110,7 +110,7 @@ const getDatesOfWeek = (weekString: string): Date[] => {
   const monday = new Date(date.setDate(diff));
   
   const weekDates: Date[] = [];
-  for (let i = 0; i < 5; i++) { // Lundi à Vendredi
+  for (let i = 0; i < 5; i++) { 
     const current = new Date(monday);
     current.setDate(monday.getDate() + i);
     weekDates.push(current);
@@ -312,10 +312,12 @@ export default function PlanningGenerator() {
   const activeCount = activeDates.length;
   const isLandscape = activeCount === 1;
 
-  // Configuration dynamique des styles selon le nombre de jours
+  // Configuration dynamique des styles
   const getLayoutConfig = () => {
     if (activeCount <= 1) {
       return {
+        // Mode 1 Jour (Portrait ou Paysage) : On a de la place
+        isHeaderHorizontal: false, // Stack Vertical
         containerGap: 'gap-8',
         cardHeaderP: 'p-5',
         cardTitleSize: 'text-2xl',
@@ -328,6 +330,8 @@ export default function PlanningGenerator() {
       };
     } else if (activeCount <= 3) {
       return {
+        // Mode 2-3 Jours : Intermédiaire
+        isHeaderHorizontal: false, // Stack Vertical
         containerGap: 'gap-4',
         cardHeaderP: 'p-3',
         cardTitleSize: 'text-lg',
@@ -339,17 +343,18 @@ export default function PlanningGenerator() {
         headerTitle: 'text-xl'
       };
     } else {
-      // Mode compact (4-5 jours)
+      // Mode 4-5 Jours (Compact) : On optimise l'espace
       return {
+        isHeaderHorizontal: true, // IMPORTANT: Passage à l'horizontale
         containerGap: 'gap-2',
-        cardHeaderP: 'p-2',
-        cardTitleSize: 'text-base',
+        cardHeaderP: 'px-4 py-1.5', // Padding vertical très réduit
+        cardTitleSize: 'text-lg', // On garde une bonne taille pour le jour
         cardMetaSize: 'text-[10px]',
-        slotP: 'px-2 py-1',
-        slotTimeSize: 'text-sm',
-        slotGroupSize: 'text-xs',
-        headerMb: 'mb-2',
-        headerTitle: 'text-lg'
+        slotP: 'px-3 py-1.5', // Padding slot réduit
+        slotTimeSize: 'text-lg', // On augmente la taille de l'heure
+        slotGroupSize: 'text-base', // On augmente la taille du groupe
+        headerMb: 'mb-3',
+        headerTitle: 'text-xl' // Titre du doc réduit
       };
     }
   };
@@ -606,14 +611,13 @@ export default function PlanningGenerator() {
                @media print {
                  @page {
                    size: ${isLandscape ? 'landscape' : 'portrait'};
-                   margin: 5mm; /* Marges minimales forcées */
+                   margin: 5mm;
                  }
                  body, html {
                    height: 100%;
                    margin: 0;
                    padding: 0;
                  }
-                 /* Force le conteneur à prendre toute la hauteur sans déborder */
                  #print-container {
                     height: 100vh !important;
                     overflow: hidden !important;
@@ -639,7 +643,7 @@ export default function PlanningGenerator() {
                    </div>
                 </div>
 
-                {/* CONTAINER CARTES (FLEXIBLE) */}
+                {/* CONTAINER CARTES */}
                 <div className={`w-full max-w-[1200px] flex ${isLandscape ? 'flex-row items-stretch' : 'flex-col items-center'} ${layout.containerGap} flex-1 min-h-0`}>
                   
                   {activeDates.length > 0 ? activeDates.map((date) => {
@@ -658,16 +662,26 @@ export default function PlanningGenerator() {
                            return (
                              <div key={block.id} className="flex-1 min-w-[200px] bg-white rounded-xl overflow-hidden shadow-[0_5px_15px_rgba(0,0,0,0.08)] print:shadow-none print:border print:border-slate-300 flex flex-col">
                                
-                               {/* HEADER CARTE */}
-                               <div className={`${headerGradient} ${layout.cardHeaderP} text-white text-center shrink-0`}>
-                                 <h2 className={`${layout.cardTitleSize} font-bold mb-0.5 uppercase leading-none`}>{getDayName(date)}</h2>
-                                 <div className={`${layout.cardMetaSize} opacity-90 uppercase tracking-widest font-medium mb-1 truncate`}>📍 {block.location || '...'}</div>
-                                 <div className="inline-block bg-white/20 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                                   Avec {block.person || '...'}
+                               {/* HEADER CARTE (Dynamique Horizontal/Vertical) */}
+                               <div className={`${headerGradient} ${layout.cardHeaderP} text-white shrink-0 flex ${layout.isHeaderHorizontal ? 'flex-row items-center justify-between' : 'flex-col text-center'}`}>
+                                 <h2 className={`${layout.cardTitleSize} font-bold uppercase leading-none`}>{getDayName(date)}</h2>
+                                 
+                                 {/* Infos Lieu/Pers (Agencés en ligne si horizontal) */}
+                                 <div className={`flex ${layout.isHeaderHorizontal ? 'items-center gap-3' : 'flex-col items-center mt-1'}`}>
+                                     {block.location && (
+                                         <div className={`${layout.cardMetaSize} opacity-90 uppercase tracking-widest font-medium truncate flex items-center gap-1`}>
+                                             {!layout.isHeaderHorizontal && <span>📍</span>} {block.location}
+                                         </div>
+                                     )}
+                                     {block.person && (
+                                         <div className={`inline-block bg-white/20 px-2 py-0.5 rounded-full text-[10px] font-bold ${!layout.isHeaderHorizontal && 'mt-1'}`}>
+                                           Avec {block.person}
+                                         </div>
+                                     )}
                                  </div>
                                </div>
                                
-                               {/* SLOTS (SCROLLABLE SI BESOIN, MAIS FLEX POUR PRINT) */}
+                               {/* SLOTS */}
                                <div className="flex-1 bg-white flex flex-col justify-center min-h-0">
                                  {block.slots.map((slot) => (
                                    <div key={slot.id} className={`flex justify-between items-center ${layout.slotP} border-b border-slate-100 hover:bg-slate-50 transition-colors flex-1`}>
@@ -697,7 +711,7 @@ export default function PlanningGenerator() {
                 </div>
 
                 <div className="mt-4 text-[10px] text-slate-400 font-medium shrink-0">
-                  BTP CFA MARNE | Planning généré le {new Date().toLocaleDateString('fr-FR')}
+                  BTP CFA MARNE - Planning généré le {new Date().toLocaleDateString('fr-FR')}
                 </div>
 
              </div>
