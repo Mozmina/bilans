@@ -157,13 +157,14 @@ const initialBlock: Block = {
 
 export default function PlanningGenerator() {
   // --- STATE ---
-  const [currentWeek, setCurrentWeek] = useState<string>('2026-W05');
+  // Initialisation avec la semaine actuelle
+  const [currentWeek, setCurrentWeek] = useState<string>(() => getISOWeekString(new Date()));
   const [weekLabel, setWeekLabel] = useState<string>('Semaine A');
   const [daysData, setDaysData] = useState<DaysData>({});
   
   // State pour le calendrier visuel
   const [viewDate, setViewDate] = useState(new Date());
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false); // Nouveau state pour l'accordéon
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   // --- PERSISTANCE ---
   useEffect(() => {
@@ -171,15 +172,14 @@ export default function PlanningGenerator() {
     if (saved) {
       try {
         const parsed: StoredData = JSON.parse(saved);
-        setCurrentWeek(parsed.currentWeek || '2026-W05');
-        setWeekLabel(parsed.weekLabel || 'Semaine A');
-        setDaysData(parsed.daysData || {});
-        
-        // Mettre à jour la vue calendrier sur la semaine chargée
-        if(parsed.currentWeek) {
+        // Si aucune semaine n'est sauvegardée, on garde la semaine actuelle calculée au chargement
+        if (parsed.currentWeek) {
+            setCurrentWeek(parsed.currentWeek);
             const dates = getDatesOfWeek(parsed.currentWeek);
             if(dates.length > 0) setViewDate(dates[0]);
         }
+        setWeekLabel(parsed.weekLabel || 'Semaine A');
+        setDaysData(parsed.daysData || {});
       } catch (e) {
         console.error("Erreur de chargement", e);
       }
@@ -280,9 +280,15 @@ export default function PlanningGenerator() {
   };
 
   const resetAll = () => {
-    if(window.confirm("Tout effacer et recommencer ?")) {
+    if(window.confirm("Tout effacer et revenir à la semaine actuelle ?")) {
         setDaysData({});
         localStorage.removeItem('btp-planning-data');
+        
+        // Remise à zéro sur la date du jour
+        const now = new Date();
+        setCurrentWeek(getISOWeekString(now));
+        setViewDate(now);
+        setWeekLabel('Semaine A');
     }
   };
 
