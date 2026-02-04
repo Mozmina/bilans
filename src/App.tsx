@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Calendar as CalendarIcon, MapPin, User, Printer, Layout, RotateCcw, ChevronLeft, ChevronRight, X, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, Calendar as CalendarIcon, MapPin, User, Printer, Layout, RotateCcw, ChevronLeft, ChevronRight, X, ChevronDown, Clock, Users } from 'lucide-react';
 
 // --- TYPES & INTERFACES ---
 
@@ -316,45 +316,63 @@ export default function PlanningGenerator() {
   const getLayoutConfig = () => {
     if (activeCount <= 1) {
       return {
-        // Mode 1 Jour (Portrait ou Paysage) : On a de la place
-        isHeaderHorizontal: false, // Stack Vertical
+        // Mode 1 Jour (Paysage - Aéré mais équilibré)
+        isHeaderHorizontal: false,
         containerGap: 'gap-8',
         cardHeaderP: 'p-5',
         cardTitleSize: 'text-2xl',
         cardMetaSize: 'text-sm',
-        slotP: 'px-8 py-5',
-        slotTimeSize: 'text-2xl',
-        slotGroupSize: 'text-lg',
         headerMb: 'mb-10',
-        headerTitle: 'text-3xl'
+        headerTitle: 'text-3xl',
+        
+        // Slot Styling - Style "Meeting"
+        slotContainerMb: 'mb-4',
+        slotContainerP: 'p-4',
+        slotHeight: 'min-h-[80px]', // Hauteur min pour consistance
+        timeWidth: 'w-48', // Largeur fixe pour l'heure
+        slotTimeSize: 'text-3xl', // Taille réduite (était 4xl)
+        slotGroupSize: 'text-2xl', // Taille augmentée (était xl)
+        slotIconSize: 'w-6 h-6'
       };
     } else if (activeCount <= 3) {
       return {
-        // Mode 2-3 Jours : Intermédiaire
-        isHeaderHorizontal: false, // Stack Vertical
+        // Mode 2-3 Jours
+        isHeaderHorizontal: false,
         containerGap: 'gap-4',
         cardHeaderP: 'p-3',
         cardTitleSize: 'text-lg',
         cardMetaSize: 'text-xs',
-        slotP: 'px-4 py-2',
-        slotTimeSize: 'text-lg',
-        slotGroupSize: 'text-sm',
         headerMb: 'mb-4',
-        headerTitle: 'text-xl'
+        headerTitle: 'text-xl',
+
+        // Slot Styling
+        slotContainerMb: 'mb-3',
+        slotContainerP: 'p-3',
+        slotHeight: 'min-h-[60px]',
+        timeWidth: 'w-32',
+        slotTimeSize: 'text-xl',
+        slotGroupSize: 'text-lg',
+        slotIconSize: 'w-5 h-5'
       };
     } else {
-      // Mode 4-5 Jours (Compact) : On optimise l'espace
+      // Mode 4-5 Jours (Compact)
       return {
-        isHeaderHorizontal: true, // IMPORTANT: Passage à l'horizontale
+        isHeaderHorizontal: true,
         containerGap: 'gap-2',
-        cardHeaderP: 'px-4 py-1.5', // Padding vertical très réduit
-        cardTitleSize: 'text-lg', // On garde une bonne taille pour le jour
+        cardHeaderP: 'px-3 py-1.5',
+        cardTitleSize: 'text-base',
         cardMetaSize: 'text-[10px]',
-        slotP: 'px-3 py-1.5', // Padding slot réduit
-        slotTimeSize: 'text-lg', // On augmente la taille de l'heure
-        slotGroupSize: 'text-base', // On augmente la taille du groupe
-        headerMb: 'mb-3',
-        headerTitle: 'text-xl' // Titre du doc réduit
+        headerMb: 'mb-2',
+        headerTitle: 'text-lg',
+
+        // Slot Styling
+        slotContainerMb: 'mb-1.5',
+        slotContainerP: 'px-3 py-2',
+        slotHeight: 'min-h-[45px]',
+        timeWidth: 'w-24',
+        slotTimeSize: 'text-base',
+        slotGroupSize: 'text-base', // Même taille que l'heure
+        slotIconSize: 'w-4 h-4'
       };
     }
   };
@@ -667,11 +685,11 @@ export default function PlanningGenerator() {
                            return (
                              <div key={block.id} className="flex-1 min-w-[200px] bg-white rounded-xl overflow-hidden shadow-[0_5px_15px_rgba(0,0,0,0.08)] print:shadow-none print:border print:border-slate-300 flex flex-col">
                                
-                               {/* HEADER CARTE (Dynamique Horizontal/Vertical) */}
+                               {/* HEADER CARTE */}
                                <div className={`${headerGradient} ${layout.cardHeaderP} text-white shrink-0 flex ${layout.isHeaderHorizontal ? 'flex-row items-center justify-between' : 'flex-col text-center'}`}>
                                  <h2 className={`${layout.cardTitleSize} font-bold uppercase leading-none`}>{getDayName(date)}</h2>
                                  
-                                 {/* Infos Lieu/Pers (Agencés en ligne si horizontal) */}
+                                 {/* Infos Lieu/Pers */}
                                  <div className={`flex ${layout.isHeaderHorizontal ? 'items-center gap-3' : 'flex-col items-center mt-1'}`}>
                                      {block.location && (
                                          <div className={`${layout.cardMetaSize} opacity-90 uppercase tracking-widest font-medium truncate flex items-center gap-1`}>
@@ -686,20 +704,31 @@ export default function PlanningGenerator() {
                                  </div>
                                </div>
                                
-                               {/* SLOTS */}
-                               <div className="flex-1 bg-white flex flex-col justify-center min-h-0">
+                               {/* SLOTS AMELIORÉS (Style Meeting Outlook) */}
+                               <div className="flex-1 bg-white flex flex-col justify-center min-h-0 p-3">
                                  {block.slots.map((slot) => (
-                                   <div key={slot.id} className={`flex justify-between items-center ${layout.slotP} border-b border-slate-100 hover:bg-slate-50 transition-colors flex-1`}>
-                                     <span className={`font-black ${layout.slotTimeSize} text-[#2c3e50] tabular-nums tracking-tight`}>
-                                       {slot.time}
-                                     </span>
-                                     <span className={`font-medium ${layout.slotGroupSize} text-slate-600 bg-[#eef2f3] px-2 py-0.5 rounded border-l-4 border-[#f1c40f]`}>
-                                       {slot.group}
-                                     </span>
+                                   <div key={slot.id} className={`flex items-center ${layout.slotContainerMb} ${layout.slotContainerP} bg-slate-50 border-l-[6px] border-[#f1c40f] rounded-r-md print:bg-slate-50 ${layout.slotHeight}`}>
+                                     
+                                     {/* Partie Heure (Largeur fixe) */}
+                                     <div className={`${layout.timeWidth} flex items-center gap-2 border-r border-slate-200 pr-4 mr-4`}>
+                                         <Clock className={`text-slate-400 ${layout.slotIconSize}`} />
+                                         <span className={`font-black ${layout.slotTimeSize} text-slate-700 tabular-nums tracking-tight`}>
+                                           {slot.time}
+                                         </span>
+                                     </div>
+
+                                     {/* Partie Groupe (Flexible) */}
+                                     <div className="flex items-center gap-2 flex-1">
+                                       <Users className={`text-slate-400 ${layout.slotIconSize}`} />
+                                       <div className={`font-bold ${layout.slotGroupSize} text-slate-800`}>
+                                         {slot.group}
+                                       </div>
+                                     </div>
                                    </div>
                                  ))}
+                                 
                                  {block.slots.length === 0 && (
-                                   <div className="p-4 text-center text-slate-300 italic text-xs">Vide</div>
+                                   <div className="p-4 text-center text-slate-300 italic text-xs">Aucun créneau</div>
                                  )}
                                </div>
                              </div>
