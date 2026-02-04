@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Calendar as CalendarIcon, MapPin, User, Printer, Layout, RotateCcw, ChevronLeft, ChevronRight, X, ChevronDown, Clock } from 'lucide-react';
+import { Plus, Trash2, Calendar as CalendarIcon, MapPin, User, Printer, Layout, RotateCcw, ChevronLeft, ChevronRight, X, ChevronDown, Clock, Users } from 'lucide-react';
 
 // --- TYPES ---
-type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'accent' | 'ghost';
-
 interface Slot {
   id: number;
   time: string;
@@ -23,6 +21,29 @@ interface DayData {
 }
 
 type DaysData = Record<string, DayData>;
+
+// --- COMPOSANTS UI ---
+const Button = ({ onClick, variant = 'primary', className = '', children, disabled = false }: any) => {
+  const variants: any = {
+    primary: "bg-slate-800 text-white hover:bg-slate-700",
+    secondary: "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50",
+    danger: "bg-red-50 text-red-600 hover:bg-red-100 border border-red-100",
+    accent: "bg-amber-400 text-slate-900 hover:bg-amber-500 font-bold",
+    ghost: "text-slate-500 hover:text-slate-800 hover:bg-slate-100 bg-transparent shadow-none"
+  };
+  return (
+    <button onClick={onClick} disabled={disabled} className={`px-3 py-1.5 rounded-md font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-sm active:scale-95 text-xs ${variants[variant]} ${className} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
+      {children}
+    </button>
+  );
+};
+
+const Input = ({ label, value, onChange, placeholder = '', type = "text" }: any) => (
+  <div className="flex flex-col gap-1">
+    {label && <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{label}</label>}
+    <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="px-2 py-1.5 rounded border border-slate-300 focus:border-blue-500 outline-none text-sm w-full" />
+  </div>
+);
 
 // --- HELPERS ---
 const getISOWeekString = (date: Date) => {
@@ -62,29 +83,6 @@ const getWeekRangeLabel = (dates: Date[]) => {
   const options: any = { day: 'numeric', month: 'long' };
   return `Du Lundi ${new Intl.DateTimeFormat('fr-FR', options).format(start)} au Vendredi ${new Intl.DateTimeFormat('fr-FR', { ...options, year: 'numeric' }).format(end)}`;
 };
-
-// --- COMPOSANTS UI ---
-const Button = ({ onClick, variant = 'primary', className = '', children, disabled = false }: any) => {
-  const variants: any = {
-    primary: "bg-slate-800 text-white hover:bg-slate-700",
-    secondary: "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50",
-    danger: "bg-red-50 text-red-600 hover:bg-red-100 border border-red-100",
-    accent: "bg-amber-400 text-slate-900 hover:bg-amber-500 font-bold",
-    ghost: "text-slate-500 hover:text-slate-800 hover:bg-slate-100 bg-transparent shadow-none"
-  };
-  return (
-    <button onClick={onClick} disabled={disabled} className={`px-3 py-1.5 rounded-md font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-sm active:scale-95 text-xs ${variants[variant]} ${className} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
-      {children}
-    </button>
-  );
-};
-
-const Input = ({ label, value, onChange, placeholder = '', type = "text" }: any) => (
-  <div className="flex flex-col gap-1">
-    {label && <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{label}</label>}
-    <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="px-2 py-1.5 rounded border border-slate-300 focus:border-blue-500 outline-none text-sm" />
-  </div>
-);
 
 // --- APP ---
 export default function PlanningGenerator() {
@@ -126,7 +124,6 @@ export default function PlanningGenerator() {
     });
   };
 
-  // CRUD helpers
   const updateBlock = (d: string, b: number, f: string, v: string) => setDaysData(p => { const n={...p}; (n[d].blocks[b] as any)[f]=v; return n; });
   const addBlock = (d: string) => setDaysData(p => { const n={...p}; if(n[d].blocks.length<2) n[d].blocks.push({id:Date.now(), location:'', person:'', slots:[{id:Date.now(), time:'', group:''}]}); return n; });
   const removeBlock = (d: string, b: number) => setDaysData(p => { const n={...p}; n[d].blocks.splice(b,1); return n; });
@@ -144,38 +141,24 @@ export default function PlanningGenerator() {
       return Math.max(max, dayMax);
   }, 0);
 
-  // Mode Paysage si : 1 jour actif ET pas trop chargé (< 7 slots)
   const isLandscape = activeCount === 1 && maxSlotsInDay < 7;
 
-  // Calcul dynamique des styles
+  // STYLES DYNAMIQUES
   const styles = {
-    // Structure globale
-    containerLayout: isLandscape 
-      ? 'flex-row items-stretch justify-center max-w-[80%] mx-auto' 
-      : 'flex-col items-stretch',
-    containerGap: isLandscape ? 'gap-0' : (activeCount > 3 ? 'gap-3' : 'gap-6'),
-    
-    // Header Document
-    headerMb: isLandscape || activeCount < 3 ? 'mb-8' : 'mb-4',
-    headerTitle: isLandscape || activeCount < 3 ? 'text-3xl' : 'text-xl',
-    headerLogo: isLandscape || activeCount < 3 ? 'h-12' : 'h-8',
-
-    // Carte Jour
-    cardLayout: 'flex flex-col',
-    cardInnerGrid: isLandscape ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2', // Astuce: Si portrait, on met les blocs côte à côte
-    
-    // Header Carte
-    cardHeadP: activeCount > 3 ? 'p-2' : 'p-4',
-    cardTitle: activeCount > 3 ? 'text-lg' : 'text-2xl',
-    
-    // Contenu Slots
-    slotsPad: activeCount > 3 ? 'p-2' : 'p-4',
-    slotRowPad: activeCount > 3 ? 'py-1.5' : 'py-3',
-    slotTimeSize: activeCount > 3 ? 'text-base' : 'text-xl',
-    slotGroupSize: activeCount > 3 ? 'text-sm' : 'text-lg',
+    headerMb: activeCount > 3 ? 'mb-4' : 'mb-8',
+    headerTitleSize: activeCount > 3 ? 'text-xl' : 'text-3xl',
+    headerLogoH: activeCount > 3 ? 'h-8' : 'h-12',
+    daysGap: isLandscape ? 'gap-0' : (activeCount > 3 ? 'gap-4' : 'gap-8'),
+    dayHeaderP: activeCount > 3 ? 'py-1.5 px-3' : 'py-3 px-5',
+    dayTitleSize: activeCount > 3 ? 'text-base' : 'text-xl',
+    subHeaderBg: 'bg-slate-50',
+    subHeaderP: activeCount > 3 ? 'py-1 px-2' : 'py-2 px-4',
+    subHeaderText: activeCount > 3 ? 'text-[10px]' : 'text-xs',
+    slotHeight: activeCount > 3 ? 'py-1' : 'py-3',
+    slotTextSize: activeCount > 3 ? 'text-xs' : 'text-base',
+    slotTimeWidth: activeCount > 3 ? 'w-16' : 'w-24',
   };
 
-  // Helper calendrier
   const monthDays = [];
   const y = viewDate.getFullYear(), m = viewDate.getMonth();
   const first = new Date(y,m,1).getDay() || 7;
@@ -184,7 +167,7 @@ export default function PlanningGenerator() {
 
   return (
     <div className="flex flex-col h-screen bg-slate-100 font-sans overflow-hidden">
-      {/* HEADER UI */}
+      {/* HEADER ÉCRAN */}
       <header className="bg-white border-b p-3 flex justify-between items-center shadow-sm print:hidden z-20">
         <div className="flex items-center gap-2 font-bold text-slate-800"><Layout size={20} className="text-amber-500"/> Générateur Planning</div>
         <div className="flex gap-2">
@@ -194,9 +177,8 @@ export default function PlanningGenerator() {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* SIDEBAR EDITOR */}
+        {/* SIDEBAR EDITEUR */}
         <div className="w-[400px] bg-white border-r flex flex-col print:hidden overflow-y-auto z-10 shadow-xl">
-            {/* ... (Calendrier inchangé) ... */}
             <div className="p-4 border-b bg-slate-50">
                <div className="flex justify-between items-center mb-2">
                   <span className="text-xs font-bold uppercase text-slate-400">Période</span>
@@ -230,7 +212,6 @@ export default function PlanningGenerator() {
                </div>
             </div>
 
-            {/* LISTE DES JOURS A EDITER */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-100">
                 {activeDates.map(d => {
                     const k = getDayKey(d);
@@ -252,8 +233,9 @@ export default function PlanningGenerator() {
                                         <div className="space-y-1">
                                             {b.slots.map((s, si) => (
                                                 <div key={s.id} className="flex gap-1 items-center">
-                                                    <input className="w-14 text-xs p-1 border rounded text-center" value={s.time} onChange={e=>updateSlot(k,bi,si,'time',e.target.value)} placeholder="00h00" />
-                                                    <input className="flex-1 text-xs p-1 border rounded font-bold" value={s.group} onChange={e=>updateSlot(k,bi,si,'group',e.target.value)} placeholder="Groupe" />
+                                                    <input className="w-16 text-xs p-1.5 border rounded text-center font-mono" value={s.time} onChange={e=>updateSlot(k,bi,si,'time',e.target.value)} placeholder="00h00" />
+                                                    {/* ICI : FORÇAGE MAJUSCULES */}
+                                                    <input className="flex-1 text-xs p-1.5 border rounded font-bold uppercase" value={s.group} onChange={e=>updateSlot(k,bi,si,'group',e.target.value.toUpperCase())} placeholder="GROUPE" />
                                                     <button onClick={()=>removeSlot(k,bi,si)} className="text-slate-300 hover:text-red-500"><X size={12}/></button>
                                                 </div>
                                             ))}
@@ -269,85 +251,82 @@ export default function PlanningGenerator() {
             </div>
         </div>
 
-        {/* VISUALISATION / PRINT AREA */}
-        <div className="flex-1 bg-slate-200 overflow-auto flex justify-center p-8 print:p-0 print:bg-white print:block">
+        {/* VISUALISATION / PRINT */}
+        <div className="flex-1 bg-slate-200 overflow-auto flex justify-center p-8 print:p-0 print:bg-white print:block no-scrollbar">
             <style>{`
+                .no-scrollbar::-webkit-scrollbar { display: none; }
+                .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
                 @media print {
                     @page { size: ${isLandscape ? 'landscape' : 'portrait'}; margin: 5mm; }
-                    body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                    body, html { height: 100%; margin: 0; padding: 0; }
+                    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
                     #print-area { height: 100vh !important; width: 100% !important; overflow: hidden !important; display: flex !important; flex-direction: column !important; }
                 }
             `}</style>
 
             <div id="print-area" 
-                 className={`bg-white shadow-2xl print:shadow-none flex flex-col items-center 
-                 ${isLandscape ? 'w-[297mm] min-h-[210mm]' : 'w-[210mm] min-h-[297mm]'}
+                 className={`bg-white shadow-2xl print:shadow-none flex flex-col items-center overflow-hidden
+                 ${isLandscape ? 'w-[297mm] h-[210mm]' : 'w-[210mm] h-[297mm]'}
                  `}
                  style={{ transform: 'scale(0.85)', transformOrigin: 'top center' }}
             >
-                {/* DOCUMENT HEADER */}
+                {/* HEADER DOCUMENT */}
                 <div className={`w-full max-w-[95%] text-center border-b-[5px] border-[#f1c40f] bg-white relative shrink-0 ${styles.headerMb} pt-6 pb-4 rounded-b-2xl shadow-sm print:shadow-none`}>
-                    <div className="absolute top-0 left-0 w-full h-[5px] bg-[#2c3e50]"/>
-                    <img src="https://classwise-reservation.netlify.app/Logo-BTPCFA51.png" alt="Logo" className={`${styles.headerLogo} mx-auto mb-3 mt-2 object-contain`}/>
-                    <h1 className={`${styles.headerTitle} font-black text-[#2c3e50] uppercase tracking-widest leading-none mb-2`}>Réunions Bilans</h1>
+                    <img src="https://classwise-reservation.netlify.app/Logo-BTPCFA51.png" alt="Logo" className={`${styles.headerLogoH} mx-auto mb-3 mt-2 object-contain`}/>
+                    <h1 className={`${styles.headerTitleSize} font-black text-[#2c3e50] uppercase tracking-widest leading-none mb-2`}>Réunions Bilans</h1>
                     <div className="inline-block bg-[#2c3e50] text-white px-6 py-1.5 rounded-full text-xs font-bold uppercase shadow-sm">
                         {getWeekRangeLabel(weekDates)} - {weekLabel}
                     </div>
                 </div>
 
-                {/* CONTENT AREA (DAYS) */}
-                <div className={`flex-1 w-full max-w-[95%] flex ${styles.containerLayout} ${styles.containerGap} min-h-0`}>
+                {/* CONTAINER JOURS */}
+                <div className={`flex-1 w-full max-w-[95%] flex flex-col ${styles.daysGap} min-h-0 ${isLandscape ? 'justify-center max-w-[80%]' : ''}`}>
                     {activeDates.length > 0 ? activeDates.map(date => {
                         const dayData = daysData[getDayKey(date)];
                         if(!dayData) return null;
                         const hasTwoBlocks = dayData.blocks.length > 1;
 
                         return (
-                            <div key={getDayKey(date)} className="flex-1 flex flex-col bg-white rounded-xl overflow-hidden shadow-md border border-slate-100 print:shadow-none print:border-slate-300 min-h-0">
+                            <div key={getDayKey(date)} className="flex flex-col bg-white rounded-xl overflow-hidden shadow border border-slate-200 print:shadow-none print:border-slate-300 min-h-0 shrink-0">
                                 
-                                {/* 1. HEADER DU JOUR (Gradient) */}
-                                <div className={`bg-gradient-to-r from-[#2c3e50] to-[#34495e] p-3 text-white flex items-center justify-between shrink-0`}>
-                                    <h2 className={`${styles.cardTitle} font-black uppercase tracking-wide pl-2`}>{getDayName(date)}</h2>
-                                    {/* Si 1 bloc, on affiche les infos dans le header général pour gagner de la place */}
+                                {/* HEADER JOUR */}
+                                <div className={`bg-gradient-to-r from-[#2c3e50] to-[#34495e] text-white flex items-center justify-between ${styles.dayHeaderP}`}>
+                                    <h2 className={`${styles.dayTitleSize} font-black uppercase tracking-wide`}>{getDayName(date)}</h2>
                                     {!hasTwoBlocks && dayData.blocks[0] && (
-                                        <div className="text-right text-xs opacity-90 font-medium">
-                                            <div className="uppercase tracking-wider">{dayData.blocks[0].location}</div>
-                                            <div className="font-bold text-amber-400">{dayData.blocks[0].person}</div>
+                                        <div className="flex items-center gap-3 text-xs opacity-90 font-medium">
+                                            {dayData.blocks[0].location && <span className="flex items-center gap-1 uppercase tracking-wide"><MapPin size={12}/> {dayData.blocks[0].location}</span>}
+                                            {dayData.blocks[0].person && <span className="flex items-center gap-1 bg-white/20 px-2 py-0.5 rounded-full"><User size={12}/> {dayData.blocks[0].person}</span>}
                                         </div>
                                     )}
                                 </div>
 
-                                {/* 2. CONTENU DES BLOCS (Grid Intelligente) */}
-                                <div className={`flex-1 p-2 grid ${hasTwoBlocks && !isLandscape ? 'grid-cols-2 gap-2 divide-x divide-slate-100' : 'grid-cols-1'} min-h-0`}>
-                                    {dayData.blocks.map((block, idx) => (
-                                        <div key={block.id} className="flex flex-col min-h-0">
-                                            
+                                {/* CONTENU BLOCS */}
+                                <div className={`flex-1 flex ${hasTwoBlocks ? 'divide-x divide-slate-200' : ''}`}>
+                                    {dayData.blocks.map((block) => (
+                                        <div key={block.id} className="flex-1 flex flex-col min-w-0">
                                             {/* Sub-Header si 2 blocs */}
                                             {hasTwoBlocks && (
-                                                <div className="mb-2 px-2 py-1 bg-slate-50 border-b border-slate-100 rounded-t flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase tracking-wide shrink-0">
-                                                    <span className="flex items-center gap-1"><MapPin size={10} className="text-[#f1c40f]"/> {block.location || '...'}</span>
-                                                    <span className="bg-white px-2 rounded-full border shadow-sm text-slate-700">{block.person}</span>
+                                                <div className={`${styles.subHeaderBg} ${styles.subHeaderP} border-b border-slate-100 flex justify-between items-center ${styles.subHeaderText} font-bold text-slate-600 uppercase tracking-tight`}>
+                                                    <span className="flex items-center gap-1 truncate"><MapPin size={10} className="text-[#f1c40f]"/> {block.location || '-'}</span>
+                                                    <span className="flex items-center gap-1 bg-white px-2 py-0.5 rounded-full border shadow-sm normal-case text-slate-800"><User size={10}/> {block.person || '-'}</span>
                                                 </div>
                                             )}
 
-                                            {/* Liste des créneaux (Clean List) */}
-                                            <div className={`flex-1 overflow-hidden flex flex-col ${isLandscape ? 'justify-center' : ''} ${styles.slotsPad}`}>
-                                                {block.slots.map(slot => (
-                                                    <div key={slot.id} className={`flex items-center border-b border-slate-100 last:border-0 ${styles.slotRowPad}`}>
-                                                        <div className="flex items-center w-24 shrink-0 gap-2">
-                                                            <Clock size={14} className="text-slate-300"/>
-                                                            <span className={`${styles.slotTimeSize} font-bold text-slate-700 tabular-nums`}>{slot.time}</span>
+                                            {/* LISTE DES SLOTS */}
+                                            <div className="flex-1 flex flex-col">
+                                                {block.slots.map((slot) => (
+                                                    <div key={slot.id} className={`flex items-center border-b border-slate-100 last:border-0 ${styles.slotHeight} px-4 hover:bg-yellow-50 odd:bg-white even:bg-slate-50/50 print:even:bg-slate-50`}>
+                                                        <div className={`${styles.slotTimeWidth} shrink-0 flex items-center gap-2 border-r-2 border-[#f1c40f] mr-4`}>
+                                                            <Clock size={12} className="text-slate-400"/>
+                                                            <span className={`${styles.slotTextSize} font-bold text-slate-700 tabular-nums`}>{slot.time}</span>
                                                         </div>
-                                                        
-                                                        {/* Separator */}
-                                                        <div className="h-4 w-[2px] bg-[#f1c40f] rounded-full mx-3 opacity-50"></div>
-
-                                                        <div className={`${styles.slotGroupSize} font-bold text-slate-800 bg-slate-50 px-3 py-0.5 rounded-full border border-slate-100`}>
-                                                            {slot.group}
+                                                        <div className="flex-1 flex items-center gap-2 min-w-0">
+                                                            <Users size={12} className="text-slate-300"/>
+                                                            <span className={`${styles.slotTextSize} font-bold text-slate-800 truncate uppercase`}>{slot.group}</span>
                                                         </div>
                                                     </div>
                                                 ))}
-                                                {block.slots.length === 0 && <div className="text-center text-slate-300 italic text-xs py-4">Aucun créneau</div>}
+                                                {block.slots.length === 0 && <div className="p-3 text-center text-slate-300 italic text-xs">Aucun créneau</div>}
                                             </div>
                                         </div>
                                     ))}
@@ -360,7 +339,7 @@ export default function PlanningGenerator() {
                 </div>
                 
                 {/* FOOTER */}
-                <div className="text-[10px] text-slate-400 font-medium py-4 shrink-0">
+                <div className="text-[10px] text-slate-400 font-medium py-3 shrink-0">
                   BTP CFA MARNE - Généré le {new Date().toLocaleDateString('fr-FR')}
                 </div>
             </div>
