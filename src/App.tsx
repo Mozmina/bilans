@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Calendar, MapPin, User, Clock, Users, Printer, Layout, RotateCcw } from 'lucide-react';
+import { Plus, Trash2, Calendar, MapPin, User, Clock, Users, Printer, Layout, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
 
 // --- TYPES & INTERFACES ---
 
@@ -40,7 +40,6 @@ interface DayData {
   blocks: Block[];
 }
 
-// Record<string, DayData> permet d'utiliser des clés string (ex: "2026-02-04") sans erreur TS7053
 type DaysData = Record<string, DayData>;
 
 interface StoredData {
@@ -52,7 +51,7 @@ interface StoredData {
 // --- COMPOSANTS UI ---
 
 const Button = ({ onClick, variant = 'primary', className = '', children, disabled = false }: ButtonProps) => {
-  const baseStyle = "px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-sm";
+  const baseStyle = "px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-sm active:scale-95";
   
   const variants: Record<ButtonVariant, string> = {
     primary: "bg-slate-800 text-white hover:bg-slate-700",
@@ -88,6 +87,7 @@ const Input = ({ label, value, onChange, placeholder = '', type = "text", classN
 
 // --- FONCTIONS UTILITAIRES ---
 
+// Récupère les dates du Lundi au Vendredi (5 jours)
 const getDatesOfWeek = (weekString: string): Date[] => {
   if (!weekString) return [];
   const parts = weekString.split('-W');
@@ -102,7 +102,7 @@ const getDatesOfWeek = (weekString: string): Date[] => {
   const monday = new Date(date.setDate(diff));
   
   const weekDates: Date[] = [];
-  for (let i = 0; i < 5; i++) { // Lundi à Vendredi
+  for (let i = 0; i < 5; i++) { // Lundi à Vendredi (Samedi exclu)
     const current = new Date(monday);
     current.setDate(monday.getDate() + i);
     weekDates.push(current);
@@ -110,18 +110,42 @@ const getDatesOfWeek = (weekString: string): Date[] => {
   return weekDates;
 };
 
+// Formateur de date simple (ex: "Lundi 2 Février")
 const formatDate = (date: Date): string => {
-  return new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }).format(date);
+  return new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }).format(date);
+};
+
+// Formateur pour le header (ex: "Du Lundi 2... au Vendredi 6...")
+const getWeekRangeLabel = (dates: Date[]): string => {
+  if (dates.length === 0) return "";
+  const start = dates[0];
+  const end = dates[dates.length - 1];
+  
+  const options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long' };
+  const startStr = new Intl.DateTimeFormat('fr-FR', options).format(start);
+  const endStr = new Intl.DateTimeFormat('fr-FR', { ...options, year: 'numeric' }).format(end);
+  
+  return `Du Lundi ${startStr} au Vendredi ${endStr}`;
 };
 
 const getDayName = (date: Date): string => {
   return new Intl.DateTimeFormat('fr-FR', { weekday: 'long' }).format(date).toUpperCase();
 };
 
+// Conversion Date -> String ISO Week (YYYY-Www) pour navigation
+const getISOWeekString = (date: Date): string => {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+  const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1)/7);
+  return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+};
+
 // --- DATA INITIALE ---
 
 const initialBlock: Block = {
-  id: 0, // Sera écrasé par Date.now()
+  id: 0, 
   location: '',
   person: '',
   slots: [
@@ -137,7 +161,6 @@ export default function PlanningGenerator() {
   const [currentWeek, setCurrentWeek] = useState<string>('2026-W05');
   const [weekLabel, setWeekLabel] = useState<string>('Semaine A');
   const [daysData, setDaysData] = useState<DaysData>({});
-  const [activeDayIndex, setActiveDayIndex] = useState<number>(0);
 
   // --- PERSISTANCE ---
   useEffect(() => {
@@ -164,13 +187,21 @@ export default function PlanningGenerator() {
   
   const getDayKey = (date: Date): string => date.toISOString().split('T')[0];
 
+  const changeWeek = (direction: 'prev' | 'next') => {
+    const dates = getDatesOfWeek(currentWeek);
+    if(dates.length === 0) return;
+    const monday = dates[0];
+    const shift = direction === 'next' ? 7 : -7;
+    monday.setDate(monday.getDate() + shift);
+    setCurrentWeek(getISOWeekString(monday));
+  };
+
   const handleDayToggle = (dateKey: string) => {
     setDaysData(prev => {
       const newData = { ...prev };
       if (newData[dateKey]) {
-        // Déjà actif
+        delete newData[dateKey];
       } else {
-        // Initialiser le jour avec des nouveaux IDs uniques
         newData[dateKey] = {
           active: true,
           blocks: [{ 
@@ -184,20 +215,12 @@ export default function PlanningGenerator() {
     });
   };
 
-  const removeDay = (dateKey: string) => {
-    setDaysData(prev => {
-      const newData = { ...prev };
-      delete newData[dateKey];
-      return newData;
-    });
-  };
-
-  // Typage strict pour les champs du bloc
   const updateBlock = (dateKey: string, blockIndex: number, field: keyof Block, value: string) => {
     setDaysData(prev => {
       const newData = { ...prev };
-      // On utilise 'as any' ici car TypeScript a du mal à mapper dynamiquement string sur les propriétés spécifiques
-      (newData[dateKey].blocks[blockIndex] as any)[field] = value;
+      if(newData[dateKey] && newData[dateKey].blocks[blockIndex]) {
+        (newData[dateKey].blocks[blockIndex] as any)[field] = value;
+      }
       return newData;
     });
   };
@@ -220,7 +243,9 @@ export default function PlanningGenerator() {
   const removeBlock = (dateKey: string, blockIndex: number) => {
     setDaysData(prev => {
       const newData = { ...prev };
-      newData[dateKey].blocks.splice(blockIndex, 1);
+      if(newData[dateKey]) {
+        newData[dateKey].blocks.splice(blockIndex, 1);
+      }
       return newData;
     });
   };
@@ -228,7 +253,9 @@ export default function PlanningGenerator() {
   const addSlot = (dateKey: string, blockIndex: number) => {
     setDaysData(prev => {
       const newData = { ...prev };
-      newData[dateKey].blocks[blockIndex].slots.push({ id: Date.now(), time: '', group: '' });
+      if(newData[dateKey]) {
+        newData[dateKey].blocks[blockIndex].slots.push({ id: Date.now(), time: '', group: '' });
+      }
       return newData;
     });
   };
@@ -236,7 +263,9 @@ export default function PlanningGenerator() {
   const updateSlot = (dateKey: string, blockIndex: number, slotIndex: number, field: keyof Slot, value: string) => {
     setDaysData(prev => {
       const newData = { ...prev };
-      (newData[dateKey].blocks[blockIndex].slots[slotIndex] as any)[field] = value;
+      if(newData[dateKey]) {
+        (newData[dateKey].blocks[blockIndex].slots[slotIndex] as any)[field] = value;
+      }
       return newData;
     });
   };
@@ -244,7 +273,9 @@ export default function PlanningGenerator() {
   const removeSlot = (dateKey: string, blockIndex: number, slotIndex: number) => {
     setDaysData(prev => {
       const newData = { ...prev };
-      newData[dateKey].blocks[blockIndex].slots.splice(slotIndex, 1);
+      if(newData[dateKey]) {
+        newData[dateKey].blocks[blockIndex].slots.splice(slotIndex, 1);
+      }
       return newData;
     });
   };
@@ -256,7 +287,7 @@ export default function PlanningGenerator() {
     }
   };
 
-  // Calcul des jours actifs triés
+  // Calcul des jours actifs triés par ordre chronologique
   const activeDates = weekDates.filter(d => daysData[getDayKey(d)]?.active);
   const isLandscape = activeDates.length === 1;
 
@@ -274,9 +305,9 @@ export default function PlanningGenerator() {
           <h1 className="font-bold text-slate-800 text-lg">Générateur Planning Bilans</h1>
         </div>
         <div className="flex items-center gap-4">
-           <Button variant="ghost" onClick={resetAll}><RotateCcw size={16}/> Réinitialiser</Button>
+           <Button variant="ghost" onClick={resetAll}><RotateCcw size={16}/> Reset</Button>
            <Button variant="accent" onClick={() => window.print()}>
-             <Printer size={18} /> Imprimer / PDF
+             <Printer size={18} /> Imprimer
            </Button>
         </div>
       </header>
@@ -284,161 +315,168 @@ export default function PlanningGenerator() {
       <div className="flex flex-1 overflow-hidden">
         
         {/* --- SIDEBAR EDITEUR (Gauche) --- */}
-        <div className="w-1/3 min-w-[400px] bg-white border-r border-slate-200 flex flex-col overflow-y-auto print:hidden">
+        <div className="w-1/3 min-w-[420px] bg-white border-r border-slate-200 flex flex-col print:hidden">
           
           {/* 1. Configuration Semaine */}
-          <div className="p-6 border-b border-slate-100">
-            <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-              <Calendar size={16}/> Configuration
+          <div className="p-6 border-b border-slate-100 bg-white z-20 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.1)]">
+            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+              <Calendar size={14}/> Période
             </h2>
-            <div className="grid grid-cols-2 gap-4">
+            
+            {/* Nouveau Sélecteur de Semaine Custom */}
+            <div className="mb-6 flex flex-col gap-3">
+              <div className="flex items-center justify-between bg-slate-50 p-1 rounded-lg border border-slate-200">
+                <button onClick={() => changeWeek('prev')} className="p-2 hover:bg-white hover:shadow-sm rounded-md transition-all text-slate-600">
+                  <ChevronLeft size={20} />
+                </button>
+                <div className="text-center">
+                  <div className="text-sm font-bold text-slate-800">Semaine {currentWeek.split('-W')[1]}</div>
+                  <div className="text-[10px] text-slate-500 font-medium">
+                     {weekDates.length > 0 ? `Du ${new Intl.DateTimeFormat('fr-FR', {day: 'numeric', month: 'short'}).format(weekDates[0])} au ${new Intl.DateTimeFormat('fr-FR', {day: 'numeric', month: 'short'}).format(weekDates[4])}` : '...'}
+                  </div>
+                </div>
+                <button onClick={() => changeWeek('next')} className="p-2 hover:bg-white hover:shadow-sm rounded-md transition-all text-slate-600">
+                  <ChevronRight size={20} />
+                </button>
+              </div>
+
               <Input 
-                label="Semaine du..." 
-                type="week" 
-                value={currentWeek} 
-                onChange={setCurrentWeek} 
-              />
-              <Input 
-                label="Libellé Semaine" 
+                label="Libellé personnalisé" 
                 value={weekLabel} 
                 onChange={setWeekLabel} 
                 placeholder="Ex: Semaine A"
               />
             </div>
+            
+            {/* Sélecteur de Jours */}
+            <div>
+               <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Jours Actifs</label>
+               <div className="flex justify-between gap-1">
+                 {weekDates.map((date, idx) => {
+                   const key = getDayKey(date);
+                   const isActive = !!daysData[key];
+                   const dayLetter = new Intl.DateTimeFormat('fr-FR', { weekday: 'narrow' }).format(date).toUpperCase();
+                   
+                   return (
+                     <button
+                       key={idx}
+                       onClick={() => handleDayToggle(key)}
+                       className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all border flex flex-col items-center gap-1 ${
+                         isActive 
+                              ? 'bg-slate-800 text-white border-slate-800 shadow-md transform -translate-y-0.5' 
+                              : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300 hover:text-slate-600 hover:bg-slate-50'
+                       }`}
+                     >
+                       <span>{dayLetter}</span>
+                       <span className="text-[10px] font-normal opacity-70">{date.getDate()}</span>
+                     </button>
+                   );
+                 })}
+               </div>
+            </div>
           </div>
 
-          {/* 2. Sélecteur de Jours */}
-          <div className="p-6 border-b border-slate-100">
-             <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Jours actifs</h2>
-             <div className="flex flex-wrap gap-2">
-               {weekDates.map((date, idx) => {
-                 const key = getDayKey(date);
-                 const isActive = !!daysData[key];
-                 return (
-                   <button
-                     key={idx}
-                     onClick={() => isActive ? setActiveDayIndex(idx) : handleDayToggle(key)}
-                     className={`px-3 py-2 rounded text-sm font-medium transition-all border ${
-                       isActive 
-                         ? activeDayIndex === idx 
-                            ? 'bg-slate-800 text-white border-slate-800 ring-2 ring-slate-300' 
-                            : 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200'
-                         : 'bg-white text-slate-400 border-slate-200 hover:border-slate-400'
-                     }`}
-                   >
-                     {new Intl.DateTimeFormat('fr-FR', { weekday: 'short' }).format(date).toUpperCase()}
-                   </button>
-                 );
-               })}
-             </div>
-          </div>
+          {/* 2. Liste des Éditeurs (Scrollable) */}
+          <div className="flex-1 bg-slate-50 overflow-y-auto p-4 space-y-6">
+             {activeDates.length > 0 ? activeDates.map((date) => {
+               const dateKey = getDayKey(date);
+               const dayData = daysData[dateKey];
+               
+               return (
+                 <div key={dateKey} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    {/* Header du Jour */}
+                    <div className="bg-slate-100 p-4 border-b border-slate-200 flex justify-between items-center sticky top-0 z-10">
+                        <h3 className="font-black text-lg text-slate-800 flex items-center gap-2">
+                          <span className="text-amber-500 text-xs">●</span> {formatDate(date)}
+                        </h3>
+                        <div className="flex gap-2">
+                           <Button 
+                            variant="secondary" 
+                            className="text-xs py-1 h-8"
+                            onClick={() => addBlock(dateKey)}
+                            disabled={dayData.blocks.length >= 2}
+                           >
+                             <Plus size={14}/> Bloc
+                           </Button>
+                        </div>
+                    </div>
 
-          {/* 3. Éditeur du Jour Sélectionné */}
-          <div className="flex-1 bg-slate-50 p-6 overflow-y-auto">
-             {weekDates[activeDayIndex] && daysData[getDayKey(weekDates[activeDayIndex])] ? (
-               <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-                 <div className="flex justify-between items-center mb-6">
-                    <h3 className="font-black text-xl text-slate-800">
-                      {getDayName(weekDates[activeDayIndex])}
-                    </h3>
-                    <div className="flex gap-2">
-                       <Button 
-                        variant="secondary" 
-                        className="text-xs py-1"
-                        onClick={() => addBlock(getDayKey(weekDates[activeDayIndex]))}
-                        disabled={daysData[getDayKey(weekDates[activeDayIndex])].blocks.length >= 2}
-                       >
-                         <Plus size={14}/> Ajouter Bloc
-                       </Button>
-                       <Button 
-                        variant="danger" 
-                        className="text-xs py-1 px-2"
-                        onClick={() => removeDay(getDayKey(weekDates[activeDayIndex]))}
-                       >
-                         <Trash2 size={14}/>
-                       </Button>
+                    {/* Blocs du Jour */}
+                    <div className="p-4 space-y-6">
+                       {dayData.blocks.map((block, bIdx) => (
+                         <div key={block.id} className="bg-slate-50/50 rounded-lg border border-slate-200 overflow-hidden">
+                           <div className={`p-2 border-b border-slate-100 flex justify-between items-center ${bIdx === 0 ? 'bg-blue-100/30' : 'bg-orange-100/30'}`}>
+                             <span className="text-xs font-bold uppercase text-slate-500 ml-2">Bloc {bIdx + 1}</span>
+                             {bIdx > 0 && (
+                                <button onClick={() => removeBlock(dateKey, bIdx)} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1 rounded">
+                                  <Trash2 size={14}/>
+                                </button>
+                             )}
+                           </div>
+                           
+                           <div className="p-3 space-y-3">
+                             <div className="grid grid-cols-2 gap-2">
+                                <div className="relative">
+                                   <MapPin className="absolute top-2.5 left-2 w-3.5 h-3.5 text-slate-400" />
+                                   <input 
+                                     className="w-full pl-8 pr-2 py-1.5 text-xs border border-slate-200 rounded focus:border-blue-500 outline-none bg-white"
+                                     placeholder="Lieu"
+                                     value={block.location}
+                                     onChange={(e) => updateBlock(dateKey, bIdx, 'location', e.target.value)}
+                                   />
+                                </div>
+                                <div className="relative">
+                                   <User className="absolute top-2.5 left-2 w-3.5 h-3.5 text-slate-400" />
+                                   <input 
+                                     className="w-full pl-8 pr-2 py-1.5 text-xs border border-slate-200 rounded focus:border-blue-500 outline-none bg-white"
+                                     placeholder="Intervenant"
+                                     value={block.person}
+                                     onChange={(e) => updateBlock(dateKey, bIdx, 'person', e.target.value)}
+                                   />
+                                </div>
+                             </div>
+
+                             <div className="space-y-2 pt-2 border-t border-slate-100">
+                               {block.slots.map((slot, sIdx) => (
+                                 <div key={slot.id} className="flex gap-2 items-center">
+                                   <div className="relative w-20">
+                                      <input 
+                                        className="w-full px-2 py-1 text-xs border border-slate-200 rounded font-mono text-center"
+                                        placeholder="HH:MM"
+                                        value={slot.time}
+                                        onChange={(e) => updateSlot(dateKey, bIdx, sIdx, 'time', e.target.value)}
+                                      />
+                                   </div>
+                                   <div className="relative flex-1">
+                                      <input 
+                                        className="w-full px-2 py-1 text-xs border border-slate-200 rounded font-medium"
+                                        placeholder="Groupe"
+                                        value={slot.group}
+                                        onChange={(e) => updateSlot(dateKey, bIdx, sIdx, 'group', e.target.value)}
+                                      />
+                                   </div>
+                                   <button 
+                                    onClick={() => removeSlot(dateKey, bIdx, sIdx)}
+                                    className="text-slate-300 hover:text-red-500"
+                                   >
+                                     <Trash2 size={14}/>
+                                   </button>
+                                 </div>
+                               ))}
+                               <Button variant="ghost" className="w-full text-xs py-1 border-dashed border border-slate-300 text-slate-400" onClick={() => addSlot(dateKey, bIdx)}>
+                                 <Plus size={12}/> Créneau
+                               </Button>
+                             </div>
+                           </div>
+                         </div>
+                       ))}
                     </div>
                  </div>
-
-                 <div className="space-y-6">
-                   {daysData[getDayKey(weekDates[activeDayIndex])].blocks.map((block, bIdx) => (
-                     <div key={block.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                       <div className={`p-3 border-b border-slate-100 flex justify-between items-center ${bIdx === 0 ? 'bg-blue-50/50' : 'bg-orange-50/50'}`}>
-                         <span className="text-xs font-bold uppercase text-slate-500">Bloc {bIdx + 1}</span>
-                         {bIdx > 0 && (
-                            <button onClick={() => removeBlock(getDayKey(weekDates[activeDayIndex]), bIdx)} className="text-red-400 hover:text-red-600">
-                              <Trash2 size={14}/>
-                            </button>
-                         )}
-                       </div>
-                       
-                       <div className="p-4 space-y-4">
-                         <div className="grid grid-cols-2 gap-3">
-                            <div className="relative">
-                               <MapPin className="absolute top-3 left-3 w-4 h-4 text-slate-400" />
-                               <input 
-                                 className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded focus:border-blue-500 outline-none"
-                                 placeholder="Lieu (ex: Salle Conseil)"
-                                 value={block.location}
-                                 onChange={(e) => updateBlock(getDayKey(weekDates[activeDayIndex]), bIdx, 'location', e.target.value)}
-                               />
-                            </div>
-                            <div className="relative">
-                               <User className="absolute top-3 left-3 w-4 h-4 text-slate-400" />
-                               <input 
-                                 className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded focus:border-blue-500 outline-none"
-                                 placeholder="Intervenant (ex: JPB)"
-                                 value={block.person}
-                                 onChange={(e) => updateBlock(getDayKey(weekDates[activeDayIndex]), bIdx, 'person', e.target.value)}
-                               />
-                            </div>
-                         </div>
-
-                         <div className="space-y-2">
-                           <div className="flex justify-between items-end">
-                              <label className="text-xs font-semibold text-slate-400 uppercase">Créneaux</label>
-                           </div>
-                           {block.slots.map((slot, sIdx) => (
-                             <div key={slot.id} className="flex gap-2 items-center">
-                               <div className="relative w-24">
-                                  <Clock className="absolute top-2.5 left-2 w-3 h-3 text-slate-400" />
-                                  <input 
-                                    className="w-full pl-7 pr-2 py-1.5 text-sm border border-slate-200 rounded font-mono"
-                                    placeholder="HH:MM"
-                                    value={slot.time}
-                                    onChange={(e) => updateSlot(getDayKey(weekDates[activeDayIndex]), bIdx, sIdx, 'time', e.target.value)}
-                                  />
-                               </div>
-                               <div className="relative flex-1">
-                                  <Users className="absolute top-2.5 left-2 w-3 h-3 text-slate-400" />
-                                  <input 
-                                    className="w-full pl-7 pr-2 py-1.5 text-sm border border-slate-200 rounded font-medium"
-                                    placeholder="Groupe"
-                                    value={slot.group}
-                                    onChange={(e) => updateSlot(getDayKey(weekDates[activeDayIndex]), bIdx, sIdx, 'group', e.target.value)}
-                                  />
-                               </div>
-                               <button 
-                                onClick={() => removeSlot(getDayKey(weekDates[activeDayIndex]), bIdx, sIdx)}
-                                className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded"
-                               >
-                                 <Trash2 size={14}/>
-                               </button>
-                             </div>
-                           ))}
-                           <Button variant="ghost" className="w-full text-xs py-1 mt-2 border-dashed border border-slate-300" onClick={() => addSlot(getDayKey(weekDates[activeDayIndex]), bIdx)}>
-                             <Plus size={12}/> Ajouter un créneau
-                           </Button>
-                         </div>
-                       </div>
-                     </div>
-                   ))}
-                 </div>
-               </div>
-             ) : (
-               <div className="h-full flex flex-col items-center justify-center text-slate-400">
+               );
+             }) : (
+               <div className="h-full flex flex-col items-center justify-center text-slate-400 min-h-[300px]">
                  <Calendar size={48} className="mb-4 opacity-20"/>
-                 <p>Sélectionnez un jour ci-dessus pour commencer</p>
+                 <p className="text-center text-sm">Sélectionnez les jours ci-dessus<br/>pour les ajouter au planning</p>
                </div>
              )}
           </div>
@@ -482,8 +520,8 @@ export default function PlanningGenerator() {
                       className="h-12 mx-auto mb-4"
                    />
                    <h1 className="text-3xl font-black text-[#2c3e50] uppercase tracking-widest mb-2">Réunions Bilans</h1>
-                   <div className="inline-block bg-[#2c3e50] text-white px-6 py-1.5 rounded-full text-sm font-bold mt-2">
-                     {activeDates.length > 0 ? formatDate(activeDates[0]) : "Date"} - {weekLabel}
+                   <div className="inline-block bg-[#2c3e50] text-white px-6 py-2 rounded-full text-sm font-bold mt-2">
+                     {getWeekRangeLabel(weekDates)} - {weekLabel}
                    </div>
                 </div>
 
