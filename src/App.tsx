@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Calendar as CalendarIcon, MapPin, User, Printer, Layout, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, Calendar as CalendarIcon, MapPin, User, Printer, Layout, RotateCcw, ChevronLeft, ChevronRight, X, ChevronDown } from 'lucide-react';
 
 // --- TYPES & INTERFACES ---
 
@@ -51,7 +51,7 @@ interface StoredData {
 // --- COMPOSANTS UI ---
 
 const Button = ({ onClick, variant = 'primary', className = '', children, disabled = false }: ButtonProps) => {
-  const baseStyle = "px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-sm active:scale-95";
+  const baseStyle = "px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-sm active:scale-95 text-sm";
   
   const variants: Record<ButtonVariant, string> = {
     primary: "bg-slate-800 text-white hover:bg-slate-700",
@@ -161,8 +161,9 @@ export default function PlanningGenerator() {
   const [weekLabel, setWeekLabel] = useState<string>('Semaine A');
   const [daysData, setDaysData] = useState<DaysData>({});
   
-  // State pour le calendrier visuel (Mois affiché)
+  // State pour le calendrier visuel
   const [viewDate, setViewDate] = useState(new Date());
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false); // Nouveau state pour l'accordéon
 
   // --- PERSISTANCE ---
   useEffect(() => {
@@ -312,6 +313,7 @@ export default function PlanningGenerator() {
   const selectWeekFromDate = (date: Date) => {
       const weekString = getISOWeekString(date);
       setCurrentWeek(weekString);
+      setIsCalendarOpen(false); // On ferme le calendrier après sélection
   };
 
   const changeMonth = (offset: number) => {
@@ -352,53 +354,78 @@ export default function PlanningGenerator() {
           
           {/* 1. Calendrier & Config */}
           <div className="p-6 border-b border-slate-100 bg-white z-20 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.1)]">
-            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-              <CalendarIcon size={14}/> Sélection Semaine
-            </h2>
-            
-            {/* CALENDRIER VISUEL */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4">
-                <div className="flex justify-between items-center mb-4">
-                    <button onClick={() => changeMonth(-1)} className="p-1 hover:bg-slate-200 rounded"><ChevronLeft size={16}/></button>
-                    <span className="font-bold text-slate-700 capitalize">
-                        {new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(viewDate)}
-                    </span>
-                    <button onClick={() => changeMonth(1)} className="p-1 hover:bg-slate-200 rounded"><ChevronRight size={16}/></button>
-                </div>
-                
-                <div className="grid grid-cols-7 gap-1 text-center mb-2">
-                    {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map(d => (
-                        <span key={d} className="text-[10px] font-bold text-slate-400">{d}</span>
-                    ))}
-                </div>
-                
-                <div className="grid grid-cols-7 gap-1">
-                    {monthDays.map((day, idx) => {
-                        if(!day) return <div key={`empty-${idx}`} />;
-                        
-                        // Est-ce que ce jour fait partie de la semaine sélectionnée ?
-                        // On compare avec la liste des jours de la semaine courante (weekDates)
-                        // Attention: weekDates ne contient que Lun-Ven, mais le calendrier affiche Lun-Dim.
-                        // On vérifie donc si la semaine ISO est la même.
-                        const isSelectedWeek = getISOWeekString(day) === currentWeek;
-                        
-                        return (
-                            <button 
-                                key={idx}
-                                onClick={() => selectWeekFromDate(day)}
-                                className={`
-                                    h-8 rounded-md text-sm flex items-center justify-center transition-all
-                                    ${isSelectedWeek 
-                                        ? 'bg-blue-100 text-blue-700 font-bold border border-blue-200' 
-                                        : 'hover:bg-white hover:shadow-sm text-slate-600'}
-                                `}
-                            >
-                                {day.getDate()}
-                            </button>
-                        )
-                    })}
-                </div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                <CalendarIcon size={14}/> Période
+              </h2>
             </div>
+            
+            {/* RÉSUMÉ SEMAINE (Compact) */}
+            {!isCalendarOpen ? (
+                <div 
+                  className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-6 cursor-pointer hover:bg-slate-100 transition-colors group"
+                  onClick={() => setIsCalendarOpen(true)}
+                >
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Semaine sélectionnée</div>
+                            <div className="font-bold text-slate-700 text-sm">
+                                {getWeekRangeLabel(weekDates)}
+                            </div>
+                        </div>
+                        <div className="bg-white p-2 rounded-lg border border-slate-200 text-slate-500 group-hover:text-blue-600 group-hover:border-blue-200 transition-colors">
+                            <ChevronDown size={16} />
+                        </div>
+                    </div>
+                </div>
+            ) : (
+                /* CALENDRIER VISUEL (Ouvert) */
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-6 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-200">
+                        <span className="text-xs font-bold text-slate-500 uppercase">Choisir une semaine</span>
+                        <button onClick={() => setIsCalendarOpen(false)} className="text-slate-400 hover:text-slate-700">
+                            <X size={16} />
+                        </button>
+                    </div>
+
+                    <div className="flex justify-between items-center mb-4">
+                        <button onClick={() => changeMonth(-1)} className="p-1 hover:bg-slate-200 rounded"><ChevronLeft size={16}/></button>
+                        <span className="font-bold text-slate-700 capitalize">
+                            {new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(viewDate)}
+                        </span>
+                        <button onClick={() => changeMonth(1)} className="p-1 hover:bg-slate-200 rounded"><ChevronRight size={16}/></button>
+                    </div>
+                    
+                    <div className="grid grid-cols-7 gap-1 text-center mb-2">
+                        {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map(d => (
+                            <span key={d} className="text-[10px] font-bold text-slate-400">{d}</span>
+                        ))}
+                    </div>
+                    
+                    <div className="grid grid-cols-7 gap-1">
+                        {monthDays.map((day, idx) => {
+                            if(!day) return <div key={`empty-${idx}`} />;
+                            
+                            const isSelectedWeek = getISOWeekString(day) === currentWeek;
+                            
+                            return (
+                                <button 
+                                    key={idx}
+                                    onClick={() => selectWeekFromDate(day)}
+                                    className={`
+                                        h-8 rounded-md text-sm flex items-center justify-center transition-all
+                                        ${isSelectedWeek 
+                                            ? 'bg-blue-600 text-white font-bold shadow-md' 
+                                            : 'bg-white border border-slate-100 hover:border-blue-300 hover:text-blue-600 text-slate-600'}
+                                    `}
+                                >
+                                    {day.getDate()}
+                                </button>
+                            )
+                        })}
+                    </div>
+                </div>
+            )}
 
             <div className="mb-6">
                  <Input 
