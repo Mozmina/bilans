@@ -697,7 +697,7 @@ export default function PlanningGenerator() {
                 </div>
 
                 <div className="mt-4 text-[10px] text-slate-400 font-medium shrink-0">
-                  BTP CFA MARNE - Planning généré le {new Date().toLocaleDateString('fr-FR')}
+                  BTP CFA MARNE | Planning généré le {new Date().toLocaleDateString('fr-FR')}
                 </div>
 
              </div>
