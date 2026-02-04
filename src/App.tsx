@@ -87,7 +87,6 @@ const Input = ({ label, value, onChange, placeholder = '', type = "text", classN
 
 // --- FONCTIONS UTILITAIRES ---
 
-// Conversion Date -> String ISO Week (YYYY-Www)
 const getISOWeekString = (date: Date): string => {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
   const dayNum = d.getUTCDay() || 7;
@@ -97,7 +96,6 @@ const getISOWeekString = (date: Date): string => {
   return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
 };
 
-// Récupère les dates du Lundi au Vendredi pour une semaine ISO donnée
 const getDatesOfWeek = (weekString: string): Date[] => {
   if (!weekString) return [];
   const parts = weekString.split('-W');
@@ -124,7 +122,6 @@ const formatDate = (date: Date): string => {
   return new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }).format(date);
 };
 
-// Formateur pour le header (ex: "Du Lundi 2... au Vendredi 6...")
 const getWeekRangeLabel = (dates: Date[]): string => {
   if (dates.length === 0) return "";
   const start = dates[0];
@@ -157,12 +154,9 @@ const initialBlock: Block = {
 
 export default function PlanningGenerator() {
   // --- STATE ---
-  // Initialisation avec la semaine actuelle
   const [currentWeek, setCurrentWeek] = useState<string>(() => getISOWeekString(new Date()));
   const [weekLabel, setWeekLabel] = useState<string>('Semaine A');
   const [daysData, setDaysData] = useState<DaysData>({});
-  
-  // State pour le calendrier visuel
   const [viewDate, setViewDate] = useState(new Date());
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
@@ -172,7 +166,6 @@ export default function PlanningGenerator() {
     if (saved) {
       try {
         const parsed: StoredData = JSON.parse(saved);
-        // Si aucune semaine n'est sauvegardée, on garde la semaine actuelle calculée au chargement
         if (parsed.currentWeek) {
             setCurrentWeek(parsed.currentWeek);
             const dates = getDatesOfWeek(parsed.currentWeek);
@@ -283,8 +276,6 @@ export default function PlanningGenerator() {
     if(window.confirm("Tout effacer et revenir à la semaine actuelle ?")) {
         setDaysData({});
         localStorage.removeItem('btp-planning-data');
-        
-        // Remise à zéro sur la date du jour
         const now = new Date();
         setCurrentWeek(getISOWeekString(now));
         setViewDate(now);
@@ -292,34 +283,22 @@ export default function PlanningGenerator() {
     }
   };
 
-  // --- LOGIQUE CALENDRIER ---
-  
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
     const month = date.getMonth();
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
-    
-    // 0 = Dimanche, 1 = Lundi, ...
-    // On veut commencer Lundi (1), donc on ajuste
     let startDay = firstDay.getDay() || 7; 
-    
     const days = [];
-    // Padding début de mois
-    for (let i = 1; i < startDay; i++) {
-        days.push(null);
-    }
-    // Jours du mois
-    for (let i = 1; i <= lastDay.getDate(); i++) {
-        days.push(new Date(year, month, i));
-    }
+    for (let i = 1; i < startDay; i++) days.push(null);
+    for (let i = 1; i <= lastDay.getDate(); i++) days.push(new Date(year, month, i));
     return days;
   };
 
   const selectWeekFromDate = (date: Date) => {
       const weekString = getISOWeekString(date);
       setCurrentWeek(weekString);
-      setIsCalendarOpen(false); // On ferme le calendrier après sélection
+      setIsCalendarOpen(false);
   };
 
   const changeMonth = (offset: number) => {
@@ -328,10 +307,54 @@ export default function PlanningGenerator() {
       setViewDate(newDate);
   };
 
-  // --- RENDER ---
+  // --- LOGIQUE DE DENSITÉ ET STYLE ---
   const activeDates = weekDates.filter(d => daysData[getDayKey(d)]?.active);
-  const isLandscape = activeDates.length === 1;
+  const activeCount = activeDates.length;
+  const isLandscape = activeCount === 1;
 
+  // Configuration dynamique des styles selon le nombre de jours
+  const getLayoutConfig = () => {
+    if (activeCount <= 1) {
+      return {
+        containerGap: 'gap-8',
+        cardHeaderP: 'p-5',
+        cardTitleSize: 'text-2xl',
+        cardMetaSize: 'text-sm',
+        slotP: 'px-8 py-5',
+        slotTimeSize: 'text-2xl',
+        slotGroupSize: 'text-lg',
+        headerMb: 'mb-10',
+        headerTitle: 'text-3xl'
+      };
+    } else if (activeCount <= 3) {
+      return {
+        containerGap: 'gap-4',
+        cardHeaderP: 'p-3',
+        cardTitleSize: 'text-lg',
+        cardMetaSize: 'text-xs',
+        slotP: 'px-4 py-2',
+        slotTimeSize: 'text-lg',
+        slotGroupSize: 'text-sm',
+        headerMb: 'mb-4',
+        headerTitle: 'text-xl'
+      };
+    } else {
+      // Mode compact (4-5 jours)
+      return {
+        containerGap: 'gap-2',
+        cardHeaderP: 'p-2',
+        cardTitleSize: 'text-base',
+        cardMetaSize: 'text-[10px]',
+        slotP: 'px-2 py-1',
+        slotTimeSize: 'text-sm',
+        slotGroupSize: 'text-xs',
+        headerMb: 'mb-2',
+        headerTitle: 'text-lg'
+      };
+    }
+  };
+
+  const layout = getLayoutConfig();
   const monthDays = getDaysInMonth(viewDate);
 
   return (
@@ -358,7 +381,6 @@ export default function PlanningGenerator() {
         {/* --- SIDEBAR EDITEUR (Gauche) --- */}
         <div className="w-1/3 min-w-[420px] bg-white border-r border-slate-200 flex flex-col print:hidden">
           
-          {/* 1. Calendrier & Config */}
           <div className="p-6 border-b border-slate-100 bg-white z-20 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.1)]">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
@@ -366,7 +388,6 @@ export default function PlanningGenerator() {
               </h2>
             </div>
             
-            {/* RÉSUMÉ SEMAINE (Compact) */}
             {!isCalendarOpen ? (
                 <div 
                   className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-6 cursor-pointer hover:bg-slate-100 transition-colors group"
@@ -385,7 +406,6 @@ export default function PlanningGenerator() {
                     </div>
                 </div>
             ) : (
-                /* CALENDRIER VISUEL (Ouvert) */
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-6 animate-in fade-in slide-in-from-top-2 duration-200">
                     <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-200">
                         <span className="text-xs font-bold text-slate-500 uppercase">Choisir une semaine</span>
@@ -411,9 +431,7 @@ export default function PlanningGenerator() {
                     <div className="grid grid-cols-7 gap-1">
                         {monthDays.map((day, idx) => {
                             if(!day) return <div key={`empty-${idx}`} />;
-                            
                             const isSelectedWeek = getISOWeekString(day) === currentWeek;
-                            
                             return (
                                 <button 
                                     key={idx}
@@ -442,7 +460,6 @@ export default function PlanningGenerator() {
                 />
             </div>
             
-            {/* Sélecteur de Jours */}
             <div>
                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Jours Actifs (Clic pour activer)</label>
                <div className="flex justify-between gap-1">
@@ -470,15 +487,12 @@ export default function PlanningGenerator() {
             </div>
           </div>
 
-          {/* 2. Liste des Éditeurs (Scrollable) */}
           <div className="flex-1 bg-slate-50 overflow-y-auto p-4 space-y-6">
              {activeDates.length > 0 ? activeDates.map((date) => {
                const dateKey = getDayKey(date);
                const dayData = daysData[dateKey];
-               
                return (
                  <div key={dateKey} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    {/* Header du Jour */}
                     <div className="bg-slate-100 p-4 border-b border-slate-200 flex justify-between items-center sticky top-0 z-10">
                         <h3 className="font-black text-lg text-slate-800 flex items-center gap-2">
                           <span className="text-amber-500 text-xs">●</span> {formatDate(date)}
@@ -494,8 +508,6 @@ export default function PlanningGenerator() {
                            </Button>
                         </div>
                     </div>
-
-                    {/* Blocs du Jour */}
                     <div className="p-4 space-y-6">
                        {dayData.blocks.map((block, bIdx) => (
                          <div key={block.id} className="bg-slate-50/50 rounded-lg border border-slate-200 overflow-hidden">
@@ -507,7 +519,6 @@ export default function PlanningGenerator() {
                                 </button>
                              )}
                            </div>
-                           
                            <div className="p-3 space-y-3">
                              <div className="grid grid-cols-2 gap-2">
                                 <div className="relative">
@@ -529,7 +540,6 @@ export default function PlanningGenerator() {
                                    />
                                 </div>
                              </div>
-
                              <div className="space-y-2 pt-2 border-t border-slate-100">
                                {block.slots.map((slot, sIdx) => (
                                  <div key={slot.id} className="flex gap-2 items-center">
@@ -579,12 +589,14 @@ export default function PlanningGenerator() {
         {/* --- VISUALISATION (Droite) --- */}
         <div className="flex-1 bg-slate-200 overflow-auto p-8 flex justify-center items-start print:p-0 print:bg-white print:block print:overflow-visible">
           
+          {/* CONTENEUR PAPIER */}
           <div 
+            id="print-container"
             className={`bg-white shadow-2xl print:shadow-none transition-all duration-300 origin-top
-              ${isLandscape ? 'w-[297mm] min-h-[210mm] print:w-full print:h-full' : 'w-[210mm] min-h-[297mm] print:w-full print:h-full'}
+              ${isLandscape ? 'w-[297mm] min-h-[210mm]' : 'w-[210mm] min-h-[297mm]'}
+              print:w-full print:h-full print:flex print:flex-col
             `}
             style={{
-              // Simulation zoom pour l'écran
               transform: 'scale(0.85)', 
               marginBottom: '-10%' 
             }}
@@ -594,72 +606,81 @@ export default function PlanningGenerator() {
                @media print {
                  @page {
                    size: ${isLandscape ? 'landscape' : 'portrait'};
-                   margin: 0;
+                   margin: 5mm; /* Marges minimales forcées */
                  }
-                 body {
-                   -webkit-print-color-adjust: exact !important;
-                   print-color-adjust: exact !important;
+                 body, html {
+                   height: 100%;
+                   margin: 0;
+                   padding: 0;
+                 }
+                 /* Force le conteneur à prendre toute la hauteur sans déborder */
+                 #print-container {
+                    height: 100vh !important;
+                    overflow: hidden !important;
+                    display: flex !important;
+                    flex-direction: column !important;
                  }
                }
              `}</style>
 
-             <div className="w-full h-full p-[15mm] flex flex-col items-center">
+             <div className="w-full h-full p-[10mm] flex flex-col items-center print:p-0">
                 
                 {/* HEADER DOCUMENT */}
-                <div className="w-full max-w-[1000px] text-center mb-10 bg-white p-6 rounded-2xl shadow-[0_10px_25px_rgba(0,0,0,0.05)] border-b-[5px] border-[#f1c40f] relative overflow-hidden print:shadow-none print:border print:border-slate-300">
+                <div className={`w-full max-w-[1000px] text-center bg-white rounded-2xl shadow-[0_10px_25px_rgba(0,0,0,0.05)] border-b-[5px] border-[#f1c40f] relative overflow-hidden print:shadow-none print:border print:border-slate-300 shrink-0 ${layout.headerMb} p-4`}>
                    <div className="absolute top-0 left-0 w-full h-[5px] bg-[#2c3e50]" />
                    <img 
                       src="https://classwise-reservation.netlify.app/Logo-BTPCFA51.png"
                       alt="Logo"
-                      className="h-12 mx-auto mb-4"
+                      className="h-10 mx-auto mb-2"
                    />
-                   <h1 className="text-3xl font-black text-[#2c3e50] uppercase tracking-widest mb-2">Réunions Bilans</h1>
-                   <div className="inline-block bg-[#2c3e50] text-white px-6 py-2 rounded-full text-sm font-bold mt-2">
+                   <h1 className={`${layout.headerTitle} font-black text-[#2c3e50] uppercase tracking-widest mb-1`}>Réunions Bilans</h1>
+                   <div className="inline-block bg-[#2c3e50] text-white px-4 py-1 rounded-full text-xs font-bold mt-1">
                      {getWeekRangeLabel(weekDates)} - {weekLabel}
                    </div>
                 </div>
 
-                {/* CONTAINER CARTES */}
-                <div className={`flex gap-10 w-full max-w-[1200px] justify-center flex-wrap ${isLandscape ? 'flex-row items-stretch' : 'flex-col items-center'}`}>
+                {/* CONTAINER CARTES (FLEXIBLE) */}
+                <div className={`w-full max-w-[1200px] flex ${isLandscape ? 'flex-row items-stretch' : 'flex-col items-center'} ${layout.containerGap} flex-1 min-h-0`}>
                   
                   {activeDates.length > 0 ? activeDates.map((date) => {
                     const dayData = daysData[getDayKey(date)];
                     if(!dayData) return null;
 
                     return (
-                      <div key={getDayKey(date)} className={`w-full flex gap-8 ${isLandscape ? 'flex-1' : 'mb-8'}`}>
+                      <div key={getDayKey(date)} className={`w-full flex ${layout.containerGap} ${isLandscape ? 'flex-1' : 'flex-1 min-h-0'}`}>
                          {/* Pour chaque bloc du jour */}
                          {dayData.blocks.map((block, bIdx) => {
-                           // Style diff par bloc pour visibilité
                            const isPrimary = bIdx === 0; 
                            const headerGradient = isPrimary 
                               ? 'bg-gradient-to-br from-[#2c3e50] to-[#4ca1af]' 
                               : 'bg-gradient-to-br from-[#e67e22] to-[#f39c12]';
 
                            return (
-                             <div key={block.id} className="flex-1 min-w-[350px] bg-white rounded-xl overflow-hidden shadow-[0_5px_15px_rgba(0,0,0,0.08)] print:shadow-none print:border print:border-slate-300 flex flex-col">
-                               <div className={`${headerGradient} p-5 text-white text-center`}>
-                                 <h2 className="text-2xl font-bold mb-1 uppercase">{getDayName(date)}</h2>
-                                 <div className="text-sm opacity-90 uppercase tracking-widest font-medium mb-2">📍 {block.location || '...'}</div>
-                                 <div className="inline-block bg-white/20 px-4 py-1 rounded-full text-sm font-bold">
+                             <div key={block.id} className="flex-1 min-w-[200px] bg-white rounded-xl overflow-hidden shadow-[0_5px_15px_rgba(0,0,0,0.08)] print:shadow-none print:border print:border-slate-300 flex flex-col">
+                               
+                               {/* HEADER CARTE */}
+                               <div className={`${headerGradient} ${layout.cardHeaderP} text-white text-center shrink-0`}>
+                                 <h2 className={`${layout.cardTitleSize} font-bold mb-0.5 uppercase leading-none`}>{getDayName(date)}</h2>
+                                 <div className={`${layout.cardMetaSize} opacity-90 uppercase tracking-widest font-medium mb-1 truncate`}>📍 {block.location || '...'}</div>
+                                 <div className="inline-block bg-white/20 px-2 py-0.5 rounded-full text-[10px] font-bold">
                                    Avec {block.person || '...'}
                                  </div>
                                </div>
                                
-                               <div className="flex-1 bg-white">
+                               {/* SLOTS (SCROLLABLE SI BESOIN, MAIS FLEX POUR PRINT) */}
+                               <div className="flex-1 bg-white flex flex-col justify-center min-h-0">
                                  {block.slots.map((slot) => (
-                                   <div key={slot.id} className="flex justify-between items-center px-8 py-5 border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                                     <span className="font-black text-2xl text-[#2c3e50] tabular-nums tracking-tight">
+                                   <div key={slot.id} className={`flex justify-between items-center ${layout.slotP} border-b border-slate-100 hover:bg-slate-50 transition-colors flex-1`}>
+                                     <span className={`font-black ${layout.slotTimeSize} text-[#2c3e50] tabular-nums tracking-tight`}>
                                        {slot.time}
                                      </span>
-                                     <span className="font-medium text-lg text-slate-600 bg-[#eef2f3] px-4 py-1.5 rounded-lg border-l-4 border-[#f1c40f]">
+                                     <span className={`font-medium ${layout.slotGroupSize} text-slate-600 bg-[#eef2f3] px-2 py-0.5 rounded border-l-4 border-[#f1c40f]`}>
                                        {slot.group}
                                      </span>
                                    </div>
                                  ))}
-                                 {/* Remplissage vide pour équilibrer si besoin */}
                                  {block.slots.length === 0 && (
-                                   <div className="p-8 text-center text-slate-300 italic">Aucun créneau</div>
+                                   <div className="p-4 text-center text-slate-300 italic text-xs">Vide</div>
                                  )}
                                </div>
                              </div>
@@ -669,13 +690,13 @@ export default function PlanningGenerator() {
                     );
                   }) : (
                     <div className="text-center text-slate-400 py-20 italic">
-                      Aucun jour sélectionné pour l'impression
+                      Aucun jour sélectionné
                     </div>
                   )}
 
                 </div>
 
-                <div className="mt-12 text-sm text-slate-400 font-medium">
+                <div className="mt-4 text-[10px] text-slate-400 font-medium shrink-0">
                   BTP CFA MARNE - Planning généré le {new Date().toLocaleDateString('fr-FR')}
                 </div>
 
