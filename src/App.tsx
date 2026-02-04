@@ -618,6 +618,11 @@ export default function PlanningGenerator() {
                    margin: 0;
                    padding: 0;
                  }
+                 /* FORCE L'IMPRESSION DES COULEURS ET DEGRADÉS */
+                 * {
+                   -webkit-print-color-adjust: exact !important;
+                   print-color-adjust: exact !important;
+                 }
                  #print-container {
                     height: 100vh !important;
                     overflow: hidden !important;
