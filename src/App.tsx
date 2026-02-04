@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Trash2, Calendar, MapPin, User, Printer, Layout, RotateCcw, ChevronLeft, ChevronRight, X, ChevronDown, Clock, Users } from 'lucide-react';
 
-// --- TYPES SIMPLIFIÉS ---
+// --- TYPES ---
 interface Slot {
   id: number;
   time: string;
@@ -234,7 +234,7 @@ export default function PlanningGenerator() {
                                             {b.slots.map((s, si) => (
                                                 <div key={s.id} className="flex gap-1 items-center">
                                                     <input className="w-16 text-xs p-1.5 border rounded text-center font-mono" value={s.time} onChange={e=>updateSlot(k,bi,si,'time',e.target.value)} placeholder="00h00" />
-                                                    {/* FORCE MAJUSCULE ICI */}
+                                                    {/* FORCE MAJUSCULE */}
                                                     <input className="flex-1 text-xs p-1.5 border rounded font-bold uppercase" value={s.group} onChange={e=>updateSlot(k,bi,si,'group',e.target.value.toUpperCase())} placeholder="GROUPE" />
                                                     <button onClick={()=>removeSlot(k,bi,si)} className="text-slate-300 hover:text-red-500"><X size={12}/></button>
                                                 </div>
@@ -291,10 +291,12 @@ export default function PlanningGenerator() {
                                 
                                 {/* HEADER JOUR */}
                                 <div className={`bg-gradient-to-r from-[#2c3e50] to-[#34495e] text-white flex items-center justify-between ${styles.dayHeaderP}`}>
-                                    <h2 className={`${styles.dayTitleSize} font-black uppercase tracking-wide`}>{getDayName(date)}</h2>
+                                    <div className="flex items-center gap-2">
+                                        <Calendar size={18} className="text-white/80" />
+                                        <h2 className={`${styles.dayTitleSize} font-black uppercase tracking-wide`}>{getDayName(date)}</h2>
+                                    </div>
                                     {!hasTwoBlocks && dayData.blocks[0] && (
                                         <div className="flex items-center gap-3 text-xs opacity-90 font-medium">
-                                            {/* PIN ROUGE ICI */}
                                             {dayData.blocks[0].location && <span className="flex items-center gap-1 uppercase tracking-wide"><MapPin size={14} className="text-rose-500" /> {dayData.blocks[0].location}</span>}
                                             {dayData.blocks[0].person && <span className="flex items-center gap-1 bg-white/20 px-2 py-0.5 rounded-full"><User size={12}/> {dayData.blocks[0].person}</span>}
                                         </div>
